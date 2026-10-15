@@ -173,9 +173,65 @@ const Invoices = () => {
     fetchDependencies();
   }, []);
 
-  // Handle conversion from PF Document if routed from PFDocuments page
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingPFSource, setLoadingPFSource] = useState(false);
+
+  // Handle conversion from PF Document if routed from PFDocuments page or URL query ?fromPF=ID
   useEffect(() => {
-    if (location.state?.convertFromPF) {
+    const searchParams = new URLSearchParams(location.search);
+    const fromPFId = searchParams.get('fromPF');
+
+    if (fromPFId) {
+      const loadPFData = async () => {
+        try {
+          setLoadingPFSource(true);
+          setError('');
+          const res = await api.get(`/pf-documents/${fromPFId}`);
+          const pf = res.data.data;
+
+          if (pf.convertedToInvoiceId) {
+            setError(`PF Document ${pf.pfNumber} has already been converted to Invoice ${pf.convertedToInvoiceNumber}.`);
+            setRelatedPFDoc(null);
+            setShowCreateModal(false);
+            return;
+          }
+
+          setEditInvoice(null);
+          setRelatedPFDoc(pf);
+          const cId = pf.client?._id || pf.client;
+          setSelectedClientId(cId);
+          setInvoiceDate(new Date().toISOString().split('T')[0]);
+          const d = new Date();
+          d.setDate(d.getDate() + 15);
+          setDueDate(d.toISOString().split('T')[0]);
+          setPaymentTerms(pf.termsAndConditions || 'Payment due within 15 days');
+          setInvoiceNotes(pf.notes || `Generated from Proforma Document ${pf.pfNumber}`);
+
+          if (pf.items && pf.items.length > 0) {
+            setItems(pf.items.map(it => ({
+              serviceId: it.serviceId || '',
+              description: it.description || '',
+              unitPrice: it.unitPrice || 0,
+              quantity: it.quantity || 1,
+              discountPercent: it.discountPercent || 0,
+              taxRate: it.taxRate || 18,
+              unit: it.unit || 'Units'
+            })));
+          }
+
+          setDocumentDiscount(pf.documentDiscount || 0);
+          setAdvanceAllocations({});
+          fetchClientAdvances(cId);
+          setShowCreateModal(true);
+        } catch (err) {
+          setError(err.response?.data?.message || `Failed to fetch PF document (${fromPFId})`);
+        } finally {
+          setLoadingPFSource(false);
+        }
+      };
+
+      loadPFData();
+    } else if (location.state?.convertFromPF) {
       const pf = location.state.convertFromPF;
       setEditInvoice(null);
       setRelatedPFDoc(pf);
@@ -202,10 +258,9 @@ const Invoices = () => {
       setAdvanceAllocations({});
       fetchClientAdvances(cId);
       setShowCreateModal(true);
-      // Clear route state to prevent reopening on reload
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+  }, [location.search, location.state]);
 
   const handleAddItemRow = () => {
     setItems([
@@ -291,7 +346,9 @@ const Invoices = () => {
 
   const handleSaveInvoice = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
+    setIsSubmitting(true);
 
     try {
       if (editInvoice) {
@@ -321,17 +378,23 @@ const Invoices = () => {
           advanceAllocations: payloadAllocations
         });
         setSuccess(relatedPFDoc 
-          ? `Invoice successfully generated and converted from PF ${relatedPFDoc.pfNumber || ''}!` 
+          ? `Invoice successfully generated and linked to PF ${relatedPFDoc.pfNumber || ''}!` 
           : 'Invoice created successfully');
       }
 
       setShowCreateModal(false);
       setRelatedPFDoc(null);
       setAdvanceAllocations({});
+      // Clean query parameter if URL had ?fromPF=...
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
       fetchInvoices();
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       setError(err.response?.data?.message || 'Error saving invoice');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -677,6 +740,29 @@ const Invoices = () => {
               </div>
             )}
 
+            {relatedPFDoc && !editInvoice && (
+              <div className="p-3.5 mb-4 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs flex items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm text-blue-950 flex items-center gap-1.5">
+                      <span>Creating Invoice from Proforma:</span>
+                      <span className="font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{relatedPFDoc.pfNumber}</span>
+                    </div>
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Client, line items, and totals prefilled from verified PF document. Review and confirm to generate official Tax Invoice.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0 font-semibold text-blue-900">
+                  <div className="text-[10px] text-blue-600 uppercase">PF Total</div>
+                  <div className="text-sm font-bold">{formatINR(relatedPFDoc.grandTotal)}</div>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="p-3 mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                 {error}
@@ -984,9 +1070,21 @@ const Invoices = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  {editInvoice ? 'Update Tax Invoice' : 'Generate Tax Invoice'}
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Processing...
+                    </>
+                  ) : editInvoice ? (
+                    'Update Tax Invoice'
+                  ) : relatedPFDoc ? (
+                    'Create Invoice from PF'
+                  ) : (
+                    'Generate Tax Invoice'
+                  )}
                 </button>
               </div>
             </form>
