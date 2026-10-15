@@ -648,13 +648,16 @@ const AdvancePayments = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Transaction Ref / UTR</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                    Transaction Ref / UTR {paymentMethod !== 'Cash' && <span className="text-red-500">*</span>}
+                  </label>
                   <input
                     type="text"
+                    required={paymentMethod !== 'Cash'}
                     value={transactionRef}
                     onChange={(e) => setTransactionRef(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none font-mono"
-                    placeholder="UTR-XXXX"
+                    placeholder={paymentMethod === 'Cheque' ? 'Cheque No.' : paymentMethod === 'Cash' ? 'Receipt Ref (Optional)' : 'UTR / IMPS / Txn ID'}
                   />
                 </div>
               </div>

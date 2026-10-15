@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import api, { getDownloadUrl } from '../../api/apiClient';
 import { formatINR, formatDate, calculateClientLine } from '../../utils/formatters';
 import {
@@ -45,10 +45,9 @@ const Invoices = () => {
   const [documentDiscount, setDocumentDiscount] = useState(0);
   const [relatedPFDoc, setRelatedPFDoc] = useState(null);
 
-  // Advance Payment Allocation in Invoice Creation
-  const [clientAdvances, setClientAdvances] = useState([]);
-  const [advanceAllocations, setAdvanceAllocations] = useState({}); // { [advanceId]: amountToApply }
-  const [loadingAdvances, setLoadingAdvances] = useState(false);
+  // Advance Amount in Invoice Creation
+  const [advanceAmount, setAdvanceAmount] = useState(0);
+  const [advanceInputError, setAdvanceInputError] = useState('');
 
   // Payment Recording Modal
   const [paymentModalInvoice, setPaymentModalInvoice] = useState(null);
@@ -59,25 +58,6 @@ const Invoices = () => {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  const fetchClientAdvances = async (clientId) => {
-    if (!clientId) {
-      setClientAdvances([]);
-      setAdvanceAllocations({});
-      return;
-    }
-    try {
-      setLoadingAdvances(true);
-      const res = await api.get(`/advances?client=${clientId}&status=Verified&limit=50`);
-      const eligible = (res.data.data || []).filter((adv) => adv.unallocatedAmount > 0);
-      setClientAdvances(eligible);
-      setAdvanceAllocations({});
-    } catch (err) {
-      console.error('Failed to fetch client advances:', err);
-    } finally {
-      setLoadingAdvances(false);
-    }
-  };
 
   const openCreateModal = () => {
     setEditInvoice(null);
@@ -94,8 +74,8 @@ const Invoices = () => {
       { serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
     ]);
     setDocumentDiscount(0);
-    setAdvanceAllocations({});
-    fetchClientAdvances(defaultClientId);
+    setAdvanceAmount(0);
+    setAdvanceInputError('');
     setShowCreateModal(true);
   };
 
@@ -121,8 +101,8 @@ const Invoices = () => {
       setItems([{ serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }]);
     }
     setDocumentDiscount(inv.documentDiscount || 0);
-    setClientAdvances([]);
-    setAdvanceAllocations({});
+    setAdvanceAmount(inv.advanceAmount || inv.amountPaid || 0);
+    setAdvanceInputError('');
     setShowCreateModal(true);
   };
 
@@ -220,8 +200,8 @@ const Invoices = () => {
           }
 
           setDocumentDiscount(pf.documentDiscount || 0);
-          setAdvanceAllocations({});
-          fetchClientAdvances(cId);
+          setAdvanceAmount(0);
+          setAdvanceInputError('');
           setShowCreateModal(true);
         } catch (err) {
           setError(err.response?.data?.message || `Failed to fetch PF document (${fromPFId})`);
@@ -255,8 +235,8 @@ const Invoices = () => {
         })));
       }
       setDocumentDiscount(pf.documentDiscount || 0);
-      setAdvanceAllocations({});
-      fetchClientAdvances(cId);
+      setAdvanceAmount(0);
+      setAdvanceInputError('');
       setShowCreateModal(true);
       window.history.replaceState({}, document.title);
     }
@@ -301,52 +281,52 @@ const Invoices = () => {
   const previewGrandTotal = Math.round(previewTaxable + previewTax);
 
   // Advance Calculation Breakdown
-  const totalAvailableAdvance = clientAdvances.reduce((acc, curr) => acc + (curr.unallocatedAmount || 0), 0);
-  const totalAdvanceApplied = Object.values(advanceAllocations).reduce((acc, curr) => acc + (Number(curr) || 0), 0);
-  const remainingPayable = Math.max(0, previewGrandTotal - totalAdvanceApplied);
+  const numericAdvanceAmount = Number(advanceAmount) || 0;
+  const remainingPayable = Math.max(0, previewGrandTotal - numericAdvanceAmount);
 
-  const handleAdvanceAmountChange = (advanceId, enteredVal, maxAvailable) => {
-    const val = Number(enteredVal);
-    if (isNaN(val) || val <= 0) {
-      const next = { ...advanceAllocations };
-      delete next[advanceId];
-      setAdvanceAllocations(next);
+  const handleAdvanceAmountChange = (enteredVal) => {
+    // If empty string, let the user clear the input
+    if (enteredVal === '') {
+      setAdvanceAmount('');
+      setAdvanceInputError('');
       return;
     }
 
-    // Limit to max available on this advance
-    let bounded = Math.min(val, maxAvailable);
-    
-    // Also ensure sum of all allocations does not exceed invoice grand total
-    const currentOthers = Object.entries(advanceAllocations).reduce((acc, [id, amt]) => {
-      return id === advanceId ? acc : acc + (Number(amt) || 0);
-    }, 0);
-    const maxAllowedForThis = Math.max(0, previewGrandTotal - currentOthers);
-    bounded = Math.min(bounded, maxAllowedForThis);
-
-    setAdvanceAllocations({
-      ...advanceAllocations,
-      [advanceId]: bounded
-    });
-  };
-
-  const handleApplyFullAdvance = (adv) => {
-    const currentOthers = Object.entries(advanceAllocations).reduce((acc, [id, amt]) => {
-      return id === adv._id ? acc : acc + (Number(amt) || 0);
-    }, 0);
-    const needed = Math.max(0, previewGrandTotal - currentOthers);
-    const alloc = Math.min(adv.unallocatedAmount, needed);
-    if (alloc > 0) {
-      setAdvanceAllocations({
-        ...advanceAllocations,
-        [adv._id]: alloc
-      });
+    const val = Number(enteredVal);
+    if (isNaN(val)) {
+      setAdvanceInputError('Please enter a valid number');
+      return;
     }
+
+    if (val < 0) {
+      setAdvanceInputError('Advance amount cannot be negative');
+      return;
+    }
+
+    if (val > previewGrandTotal) {
+      setAdvanceInputError(`Advance amount cannot exceed Invoice Grand Total (${formatINR(previewGrandTotal)})`);
+      setAdvanceAmount(val);
+      return;
+    }
+
+    setAdvanceInputError('');
+    setAdvanceAmount(val);
   };
 
   const handleSaveInvoice = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    const finalAdvance = Number(advanceAmount) || 0;
+    if (finalAdvance < 0) {
+      setError('Advance amount cannot be negative');
+      return;
+    }
+    if (finalAdvance > previewGrandTotal) {
+      setError(`Advance amount (${formatINR(finalAdvance)}) cannot exceed Invoice Grand Total (${formatINR(previewGrandTotal)})`);
+      return;
+    }
+
     setError('');
     setIsSubmitting(true);
 
@@ -362,20 +342,16 @@ const Invoices = () => {
         });
         setSuccess('Invoice updated successfully');
       } else {
-        const payloadAllocations = Object.entries(advanceAllocations)
-          .map(([advanceId, amount]) => ({ advanceId, amount: Number(amount) }))
-          .filter((a) => a.amount > 0);
-
         await api.post('/invoices', {
           clientId: selectedClientId,
           invoiceDate,
           dueDate: dueDate || null,
           items,
           documentDiscount: Number(documentDiscount) || 0,
+          advanceAmount: finalAdvance,
           notes: invoiceNotes,
           paymentTerms,
-          relatedPFDocument: relatedPFDoc ? (relatedPFDoc._id || relatedPFDoc) : undefined,
-          advanceAllocations: payloadAllocations
+          relatedPFDocument: relatedPFDoc ? (relatedPFDoc._id || relatedPFDoc) : undefined
         });
         setSuccess(relatedPFDoc 
           ? `Invoice successfully generated and linked to PF ${relatedPFDoc.pfNumber || ''}!` 
@@ -384,7 +360,8 @@ const Invoices = () => {
 
       setShowCreateModal(false);
       setRelatedPFDoc(null);
-      setAdvanceAllocations({});
+      setAdvanceAmount(0);
+      setAdvanceInputError('');
       // Clean query parameter if URL had ?fromPF=...
       if (window.location.search) {
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -776,11 +753,7 @@ const Invoices = () => {
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Select Client *</label>
                   <select
                     value={selectedClientId}
-                    onChange={(e) => {
-                      const newClientId = e.target.value;
-                      setSelectedClientId(newClientId);
-                      fetchClientAdvances(newClientId);
-                    }}
+                    onChange={(e) => setSelectedClientId(e.target.value)}
                     disabled={!!editInvoice}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none disabled:bg-slate-100 disabled:text-slate-500"
                     required
@@ -969,95 +942,62 @@ const Invoices = () => {
                 </div>
               </div>
 
-              {/* Advance Payment Section (Only on Invoice Creation) */}
-              {!editInvoice && (
-                <div className="bg-slate-50 p-4 rounded-xl border border-blue-200 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
-                    <div className="flex items-center gap-2">
-                      <WalletCards className="w-5 h-5 text-blue-600" />
-                      <h3 className="text-sm font-bold text-slate-900">Apply Client Advance Payments (Optional)</h3>
+              {/* Advance Amount Section */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <WalletCards className="w-4 h-4 text-blue-600" />
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Advance Payment / Settle on Creation (Optional)
+                  </h3>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                      Advance Amount (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-slate-400 font-semibold text-sm">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={previewGrandTotal}
+                        step="0.01"
+                        placeholder="Enter advance amount"
+                        value={advanceAmount}
+                        onChange={(e) => handleAdvanceAmountChange(e.target.value)}
+                        disabled={!!editInvoice && (editInvoice.amountPaid > 0 || editInvoice.status === 'Paid')}
+                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-600 bg-white disabled:bg-slate-100 disabled:text-slate-500"
+                      />
                     </div>
-                    <div className="text-xs font-semibold text-slate-600">
-                      Total Available Balance: <span className="text-emerald-700 font-bold">{formatINR(totalAvailableAdvance)}</span>
-                    </div>
+                    {advanceInputError ? (
+                      <p className="text-[11px] text-red-600 font-medium mt-1">{advanceInputError}</p>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Deducts from available client advance or records receipt upon creation.
+                      </p>
+                    )}
                   </div>
 
-                  {loadingAdvances ? (
-                    <div className="text-xs text-slate-500 py-2">Loading available client advances...</div>
-                  ) : clientAdvances.length === 0 ? (
-                    <div className="text-xs text-slate-500 py-1">
-                      No unallocated advance payments available for this client. The invoice will be created with normal balance payable.
+                  {/* Financial Summary Breakdown */}
+                  <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Invoice Grand Total:</span>
+                      <span className="font-bold text-slate-900 font-mono">{formatINR(previewGrandTotal)}</span>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-xs text-slate-600">
-                        Select eligible advance payments below to settle or deduct against this invoice:
-                      </p>
-                      <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                        {clientAdvances.map((adv) => {
-                          const appliedVal = advanceAllocations[adv._id] || '';
-                          return (
-                            <div key={adv._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-lg border border-slate-200 text-xs">
-                              <div>
-                                <div className="font-semibold text-slate-900 font-mono flex items-center gap-2">
-                                  <span>{adv.receiptNumber}</span>
-                                  <span className="text-slate-400 font-sans font-normal">• {formatDate(adv.paymentDate)}</span>
-                                  <span className="text-slate-400 font-sans font-normal">• {adv.paymentMethod}</span>
-                                </div>
-                                <div className="text-slate-500 mt-0.5">
-                                  Receipt Total: {formatINR(adv.amount)} | Unallocated Available: <span className="font-semibold text-emerald-700">{formatINR(adv.unallocatedAmount)}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleApplyFullAdvance(adv)}
-                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-semibold transition-colors"
-                                >
-                                  Apply Max
-                                </button>
-                                <div className="flex items-center gap-1">
-                                  <span className="text-slate-500">₹</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max={adv.unallocatedAmount}
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    value={appliedVal}
-                                    onChange={(e) => handleAdvanceAmountChange(adv._id, e.target.value, adv.unallocatedAmount)}
-                                    className="w-28 px-2 py-1 border border-slate-300 rounded font-semibold text-right outline-none focus:ring-1 focus:ring-blue-600"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Advance Summary Calculation Box */}
-                      <div className="mt-3 p-3 bg-blue-50/70 border border-blue-200 rounded-lg grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                        <div>
-                          <div className="text-slate-500">Invoice Grand Total</div>
-                          <div className="font-bold text-slate-900 mt-0.5">{formatINR(previewGrandTotal)}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500">Available Advance</div>
-                          <div className="font-bold text-emerald-700 mt-0.5">{formatINR(totalAvailableAdvance)}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500">Advance Applied</div>
-                          <div className="font-bold text-blue-700 mt-0.5">{formatINR(totalAdvanceApplied)}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500">Remaining Payable</div>
-                          <div className="font-bold text-purple-700 mt-0.5">{formatINR(remainingPayable)}</div>
-                        </div>
-                      </div>
+                    <div className="flex justify-between items-center text-blue-700">
+                      <span>Advance Amount:</span>
+                      <span className="font-bold font-mono">
+                        - {formatINR(Number(advanceAmount) || 0)}
+                      </span>
                     </div>
-                  )}
+                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-emerald-700 font-bold text-sm">
+                      <span>Remaining Balance Payable:</span>
+                      <span className="font-mono">{formatINR(remainingPayable)}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
 
               {/* Actions */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
