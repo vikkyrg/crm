@@ -285,7 +285,6 @@ const Clients = () => {
                 <th className="py-3 px-4">Company Name</th>
                 <th className="py-3 px-4">Contact Person</th>
                 <th className="py-3 px-4">Contact Details</th>
-                <th className="py-3 px-4">Assigned Manager</th>
                 <th className="py-3 px-4">Location & GST</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -294,14 +293,14 @@ const Clients = () => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center text-slate-500">
+                  <td colSpan="7" className="py-12 text-center text-slate-500">
                     <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                     Loading clients...
                   </td>
                 </tr>
               ) : clients.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center text-slate-500">
+                  <td colSpan="7" className="py-12 text-center text-slate-500">
                     No clients found matching the search criteria.
                   </td>
                 </tr>
@@ -322,19 +321,6 @@ const Clients = () => {
                     <td className="py-3 px-4 text-slate-600">
                       <div>{c.primaryPhone}</div>
                       <div className="text-xs text-slate-400">{c.email}</div>
-                    </td>
-                    <td className="py-3 px-4 text-xs">
-                      {c.assignedEmployee ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                          <div>
-                            <span className="font-semibold text-slate-900">{c.assignedEmployee.name}</span>
-                            <div className="text-[10px] text-slate-400 font-mono">{c.assignedEmployee.employeeId || c.assignedEmployee.role}</div>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 italic">Unassigned</span>
-                      )}
                     </td>
                     <td className="py-3 px-4 text-slate-600">
                       <div>{c.city}, {c.state}</div>

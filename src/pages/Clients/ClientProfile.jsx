@@ -157,19 +157,6 @@ const ClientProfile = () => {
               <span className="font-semibold text-slate-700">PAN:</span>
               <span>{client.pan || 'N/A'}</span>
             </div>
-            <div className="col-span-2 flex items-center gap-2 pt-1 border-t border-slate-200/60">
-              <UserCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <span>
-                <span className="font-semibold text-slate-700">Assigned Project Manager: </span>
-                {client.assignedEmployee ? (
-                  <span className="font-bold text-blue-700">
-                    {client.assignedEmployee.name} ({client.assignedEmployee.employeeId || client.assignedEmployee.role})
-                  </span>
-                ) : (
-                  <span className="text-slate-400 italic">Unassigned</span>
-                )}
-              </span>
-            </div>
             <div className="col-span-2 flex items-start gap-2 pt-1 border-t border-slate-200/60">
               <MapPin className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
               <span>{client.billingAddress}, {client.city}, {client.state} - {client.pincode}</span>

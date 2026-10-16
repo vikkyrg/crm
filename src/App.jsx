@@ -24,6 +24,13 @@ const Services = lazy(() => import('./pages/Services/Services'));
 const Reports = lazy(() => import('./pages/Reports/Reports'));
 const Settings = lazy(() => import('./pages/Settings/Settings'));
 
+// ERP Modules
+const Employees = lazy(() => import('./pages/Employees/Employees'));
+const EmployeeProfile = lazy(() => import('./pages/Employees/EmployeeProfile'));
+const Payroll = lazy(() => import('./pages/Payroll/Payroll'));
+const EmployeePF = lazy(() => import('./pages/EmployeePF/EmployeePF'));
+const DeliveryChallans = lazy(() => import('./pages/DeliveryChallans/DeliveryChallans'));
+
 function App() {
   return (
     <AuthProvider>
@@ -32,47 +39,65 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
 
-          {/* Protected Application Routes */}
-          <Route element={<AppLayout title="Executive Overview" breadcrumb="Dashboard" />}>
-            <Route path="/" element={<Dashboard />} />
-          </Route>
+            {/* Protected Application Routes */}
+            <Route element={<AppLayout title="Executive Overview" breadcrumb="Dashboard" />}>
+              <Route path="/" element={<Dashboard />} />
+            </Route>
 
-          <Route element={<AppLayout title="Client Directory" breadcrumb="Clients" />}>
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/clients/:id" element={<ClientProfile />} />
-          </Route>
+            <Route element={<AppLayout title="Client Directory" breadcrumb="Clients" />}>
+              <Route path="/clients" element={<Clients />} />
+              <Route path="/clients/:id" element={<ClientProfile />} />
+            </Route>
 
-          <Route element={<AppLayout title="PF Documents & Quotes" breadcrumb="PF Documents" />}>
-            <Route path="/pf-documents" element={<PFDocuments />} />
-          </Route>
+            <Route element={<AppLayout title="PF Documents & Quotes" breadcrumb="PF Documents" />}>
+              <Route path="/pf-documents" element={<PFDocuments />} />
+            </Route>
 
-          <Route element={<AppLayout title="Tax Invoices & Billing" breadcrumb="Invoices" />}>
-            <Route path="/invoices" element={<Invoices />} />
-          </Route>
+            <Route element={<AppLayout title="Tax Invoices & Billing" breadcrumb="Invoices" />}>
+              <Route path="/invoices" element={<Invoices />} />
+            </Route>
 
-          <Route element={<AppLayout title="Quantity Deliverables Register" breadcrumb="Quantities" />}>
-            <Route path="/quantities" element={<Quantities />} />
-          </Route>
+            <Route element={<AppLayout title="Quantity Deliverables Register" breadcrumb="Quantities" />}>
+              <Route path="/quantities" element={<Quantities />} />
+            </Route>
 
-          <Route element={<AppLayout title="Advance Payments & Retainers" breadcrumb="Advance Payments" />}>
-            <Route path="/advances" element={<AdvancePayments />} />
-          </Route>
+            <Route element={<AppLayout title="Advance Payments & Retainers" breadcrumb="Advance Payments" />}>
+              <Route path="/advances" element={<AdvancePayments />} />
+            </Route>
 
-          <Route element={<AppLayout title="Service Catalog & Rates" breadcrumb="Services" />}>
-            <Route path="/services" element={<Services />} />
-          </Route>
+            <Route element={<AppLayout title="Service Catalog & Rates" breadcrumb="Services" />}>
+              <Route path="/services" element={<Services />} />
+            </Route>
 
-          <Route element={<AppLayout title="Reports & Data Export" breadcrumb="Reports" />}>
-            <Route path="/reports" element={<Reports />} />
-          </Route>
+            {/* ERP Modules */}
+            <Route element={<AppLayout title="Employee Directory & Staff" breadcrumb="Employees" />}>
+              <Route path="/employees" element={<Employees />} />
+              <Route path="/employees/:id" element={<EmployeeProfile />} />
+            </Route>
 
-          <Route element={<AppLayout title="System & Company Settings" breadcrumb="Settings" />}>
-            <Route path="/settings" element={<Settings />} />
-          </Route>
+            <Route element={<AppLayout title="Salary & Monthly Payroll" breadcrumb="Payroll" />}>
+              <Route path="/payroll" element={<Payroll />} />
+            </Route>
 
-          {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route element={<AppLayout title="Employee PF & Statutory Records" breadcrumb="Employee PF" />}>
+              <Route path="/employee-pf" element={<EmployeePF />} />
+            </Route>
+
+            <Route element={<AppLayout title="Delivery Challan Register" breadcrumb="Delivery Challans" />}>
+              <Route path="/delivery-challans" element={<DeliveryChallans />} />
+            </Route>
+
+            <Route element={<AppLayout title="Reports & Data Export" breadcrumb="Reports" />}>
+              <Route path="/reports" element={<Reports />} />
+            </Route>
+
+            <Route element={<AppLayout title="System & Company Settings" breadcrumb="Settings" />}>
+              <Route path="/settings" element={<Settings />} />
+            </Route>
+
+            {/* Catch-all redirect */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </Suspense>
       </BrowserRouter>
     </AuthProvider>

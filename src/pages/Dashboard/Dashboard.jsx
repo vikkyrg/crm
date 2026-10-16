@@ -13,7 +13,12 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
-  Server
+  Server,
+  Briefcase,
+  FileText,
+  ShieldCheck,
+  Truck,
+  Package
 } from 'lucide-react';
 import {
   BarChart,
@@ -55,7 +60,7 @@ const Dashboard = () => {
     return (
       <div className="py-20 flex flex-col items-center justify-center">
         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-slate-500 font-medium text-sm">Aggregating live business metrics...</p>
+        <p className="mt-4 text-slate-500 font-medium text-sm">Aggregating live ERP business metrics...</p>
       </div>
     );
   }
@@ -74,7 +79,20 @@ const Dashboard = () => {
     );
   }
 
-  const { kpis, monthlyTrends, invoicesByStatus, recentInvoices, recentPFs, recentAdvances } = data;
+  const {
+    kpis,
+    monthlyTrends,
+    invoicesByStatus,
+    recentInvoices,
+    recentPFs,
+    recentAdvances,
+    totalEmployees,
+    activeEmployees,
+    materialInvoiceStats,
+    challanStats,
+    pfRemittanceStats,
+    latestPayroll
+  } = data;
 
   const STATUS_COLORS = {
     Issued: '#3b82f6',
@@ -89,12 +107,26 @@ const Dashboard = () => {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Executive Dashboard</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Executive ERP Dashboard</h1>
           <p className="text-sm text-slate-500">
-            Real-time financial status, GST document pipelines, receivables, and client operations.
+            Real-time financial status, GST billing, payroll disbursements, delivery challans, and EPFO compliance.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to="/payroll"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 shadow-sm transition-all"
+          >
+            <FileText className="w-4 h-4" />
+            Payroll Register
+          </Link>
+          <Link
+            to="/delivery-challans"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold hover:bg-slate-50 transition-all"
+          >
+            <Truck className="w-4 h-4" />
+            + New Challan
+          </Link>
           <Link
             to="/invoices"
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all"
@@ -102,17 +134,10 @@ const Dashboard = () => {
             <Receipt className="w-4 h-4" />
             + New Invoice
           </Link>
-          <Link
-            to="/pf-documents"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            + New PF Document
-          </Link>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards Grid - Financial Core */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Invoiced */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
@@ -172,46 +197,72 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Secondary Quick Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Link to="/clients" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 hover:border-blue-400 transition-colors">
-          <div className="p-3 bg-slate-100 text-slate-700 rounded-lg">
-            <Users className="w-5 h-5" />
+      {/* ERP Operational KPI Grid (Employees, Payroll, Delivery Challans, Material Invoices) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Employees */}
+        <Link to="/employees" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-blue-400 transition-colors shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+              <Briefcase className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 font-medium">Workforce & Staff</div>
+              <div className="text-xl font-bold text-slate-900">
+                {activeEmployees || 0} <span className="text-xs font-normal text-slate-400">/ {totalEmployees || 0}</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Clients</div>
-            <div className="text-lg font-bold text-slate-900">{kpis.activeClients} <span className="text-xs font-normal text-slate-400">/ {kpis.totalClients}</span></div>
-          </div>
+          <span className="text-[11px] font-semibold text-blue-600">Directory &rarr;</span>
         </Link>
 
-        <Link to="/services" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 hover:border-blue-400 transition-colors">
-          <div className="p-3 bg-slate-100 text-slate-700 rounded-lg">
-            <Server className="w-5 h-5" />
+        {/* Latest Payroll */}
+        <Link to="/payroll" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-400 transition-colors shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 font-medium">
+                {latestPayroll ? `Payroll (${latestPayroll.month})` : 'Payroll Runs'}
+              </div>
+              <div className="text-xl font-bold text-emerald-600">
+                {latestPayroll ? formatINR(latestPayroll.totalNetPayable) : '₹0'}
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Active Services</div>
-            <div className="text-lg font-bold text-slate-900">{kpis.totalServices}</div>
-          </div>
+          <span className="text-[11px] font-semibold text-emerald-600">Disburse &rarr;</span>
         </Link>
 
-        <Link to="/pf-documents" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 hover:border-blue-400 transition-colors">
-          <div className="p-3 bg-slate-100 text-slate-700 rounded-lg">
-            <FileSpreadsheet className="w-5 h-5" />
+        {/* Delivery Challans */}
+        <Link to="/delivery-challans" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-amber-400 transition-colors shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 font-medium">Delivery Challans</div>
+              <div className="text-xl font-bold text-slate-900">
+                {challanStats?.totalIssued || 0} <span className="text-xs font-normal text-slate-400">issued</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">PF Documents</div>
-            <div className="text-lg font-bold text-slate-900">{kpis.pfCount} <span className="text-xs font-normal text-slate-400">({formatINR(kpis.totalPFValue)})</span></div>
-          </div>
+          <span className="text-[11px] font-semibold text-amber-600">Logistics &rarr;</span>
         </Link>
 
-        <Link to="/advances" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 hover:border-blue-400 transition-colors">
-          <div className="p-3 bg-slate-100 text-slate-700 rounded-lg">
-            <CheckCircle2 className="w-5 h-5" />
+        {/* EPFO Statutory PF */}
+        <Link to="/employee-pf" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-violet-400 transition-colors shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-violet-50 text-violet-600 rounded-xl">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500 font-medium">EPFO Remittances</div>
+              <div className="text-xl font-bold text-slate-900">
+                {pfRemittanceStats?.pendingCount || 0} <span className="text-xs font-normal text-slate-400">pending</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">Allocated Advances</div>
-            <div className="text-lg font-bold text-slate-900">{formatINR(kpis.totalAdvanceAllocated)}</div>
-          </div>
+          <span className="text-[11px] font-semibold text-violet-600">Remit &rarr;</span>
         </Link>
       </div>
 
@@ -288,7 +339,7 @@ const Dashboard = () => {
         {/* Recent Invoices */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="font-bold text-slate-900 text-sm">Recent Invoices</h3>
+            <h3 className="font-bold text-slate-900 text-sm">Recent Invoices (Service & Material)</h3>
             <Link to="/invoices" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
               View All <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
@@ -299,6 +350,11 @@ const Dashboard = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900 text-sm">{inv.invoiceNumber}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      inv.invoiceType === 'Material' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {inv.invoiceType || 'Service'}
+                    </span>
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
                       {inv.status}
                     </span>

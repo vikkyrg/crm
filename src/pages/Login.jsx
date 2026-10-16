@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Building2, Lock, Mail, AlertCircle, ArrowRight } from 'lucide-react';
 
 const Login = () => {
-  const [email, setEmail] = useState('admin@innomatrics.com');
-  const [password, setPassword] = useState('AdminPassword123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -105,7 +105,7 @@ const Login = () => {
 
           <div className="mt-6 pt-5 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
-              Default administrator: <span className="font-semibold text-slate-700">admin@innomatrics.com</span> / <span className="font-semibold text-slate-700">AdminPassword123!</span>
+              Sign in with your authorized administrator credentials
             </p>
           </div>
         </div>

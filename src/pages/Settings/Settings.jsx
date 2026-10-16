@@ -62,6 +62,47 @@ const Settings = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
+  // Administrator Password Change State
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordError('New password and confirm password do not match');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long');
+      return;
+    }
+
+    try {
+      setPasswordSaving(true);
+      const res = await api.put('/auth/change-password', {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      });
+      setPasswordSuccess(res.data.message || 'Administrator password updated successfully!');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => setPasswordSuccess(''), 5000);
+    } catch (err) {
+      setPasswordError(err.response?.data?.message || 'Failed to update administrator password');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -461,6 +502,82 @@ const Settings = () => {
         </div>
       </form>
 
+      {/* Administrator Security & Password Change */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 text-base font-bold text-slate-900 pb-2 border-b border-slate-100">
+          <Shield className="w-5 h-5 text-blue-600" />
+          <span>Administrator Security & Password</span>
+        </div>
+        <p className="text-xs text-slate-500">
+          Update the master administrator credentials. Always use a strong password with letters, numbers, and symbols.
+        </p>
+
+        {passwordSuccess && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>{passwordSuccess}</span>
+          </div>
+        )}
+
+        {passwordError && (
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{passwordError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleChangePassword} className="space-y-4 max-w-xl">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Current Password</label>
+            <input
+              type="password"
+              required
+              value={passwordData.currentPassword}
+              onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+              placeholder="Enter current administrator password"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">New Password</label>
+              <input
+                type="password"
+                required
+                value={passwordData.newPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                placeholder="At least 6 characters"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Confirm New Password</label>
+              <input
+                type="password"
+                required
+                value={passwordData.confirmPassword}
+                onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                placeholder="Re-type new password"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={passwordSaving}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 shadow-sm disabled:opacity-60 transition-all"
+            >
+              <Shield className="w-4 h-4" />
+              {passwordSaving ? 'Updating Password...' : 'Update Admin Password'}
+            </button>
+          </div>
+        </form>
+      </div>
+
       {/* Staff & Project Account Managers Management Section */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -595,7 +712,6 @@ const Settings = () => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"
                   >
                     <option value="Staff">Staff / Account Manager</option>
-                    <option value="Finance">Finance</option>
                     <option value="Administrator">Administrator</option>
                   </select>
                 </div>
