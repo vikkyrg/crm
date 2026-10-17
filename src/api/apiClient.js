@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Support custom API URL for cloud deployment (e.g. Render, Railway, Vercel)
-const rawBaseURL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+const rawBaseURL = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '').trim();
 export const API_BASE_URL = rawBaseURL.replace(/\/+$/, ''); // without trailing slash
 
 // Helper to construct full URL for document downloads / CSV exports (works both locally and in deployment)

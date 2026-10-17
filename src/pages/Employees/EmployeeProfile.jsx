@@ -37,9 +37,9 @@ const EmployeeProfile = () => {
           api.get('/employee-pf', { params: { employeeId: id, limit: 12 } }).catch(() => ({ data: { records: [] } }))
         ]);
 
-        setEmployee(empRes.data);
-        setPayrollHistory(payrollRes.data?.runs || []);
-        setPfHistory(pfRes.data?.records || []);
+        setEmployee(empRes.data?.data || empRes.data);
+        setPayrollHistory(empRes.data?.payrollHistory || payrollRes.data?.runs || []);
+        setPfHistory(empRes.data?.pfRecords || pfRes.data?.records || []);
       } catch (err) {
         console.error('Failed to fetch employee profile:', err);
         setError(err.response?.data?.message || 'Employee profile not found');
@@ -269,11 +269,11 @@ const EmployeeProfile = () => {
                 {payrollHistory.map((run) => (
                   <div key={run._id} className="p-3 bg-slate-50 rounded-lg flex items-center justify-between text-xs">
                     <div>
-                      <div className="font-bold text-slate-900">{run.month} {run.year}</div>
-                      <div className="text-[11px] text-slate-500">Run ID: {run.payrollRunNumber}</div>
+                      <div className="font-bold text-slate-900">{run.periodName || `${run.month} ${run.year}`}</div>
+                      <div className="text-[11px] text-slate-500">Run ID: {run.payrollCode || run.payrollRunNumber}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-slate-900">{formatINR(run.totalNetPayable)}</div>
+                      <div className="font-bold text-slate-900">{formatINR(run.item?.netPayable ?? run.totalNetPayable ?? 0)}</div>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800">
                         {run.status}
                       </span>
@@ -304,11 +304,11 @@ const EmployeeProfile = () => {
                 {pfHistory.map((rec) => (
                   <div key={rec._id} className="p-3 bg-slate-50 rounded-lg flex items-center justify-between text-xs">
                     <div>
-                      <div className="font-bold text-slate-900">{rec.periodMonth} {rec.periodYear}</div>
+                      <div className="font-bold text-slate-900">{rec.periodName || `${rec.periodMonth || rec.month} ${rec.periodYear || rec.year}`}</div>
                       <div className="text-[11px] text-slate-500">Wage Base: {formatINR(rec.pfWageBase)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-slate-900">Total PF: {formatINR(rec.totalPfDeposit)}</div>
+                      <div className="font-bold text-slate-900">Total PF: {formatINR(rec.totalPfAmount ?? rec.totalPfDeposit ?? 0)}</div>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                         rec.remittanceStatus === 'Remitted'
                           ? 'bg-emerald-100 text-emerald-800'

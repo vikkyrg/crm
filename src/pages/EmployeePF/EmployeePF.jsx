@@ -60,10 +60,10 @@ const EmployeePF = () => {
       if (statusFilter) params.status = statusFilter;
 
       const res = await api.get('/employee-pf', { params });
-      setRecords(res.data.records || []);
+      setRecords(res.data.records || res.data.data || []);
       setTotalPages(res.data.totalPages || 1);
-      setTotalCount(res.data.totalCount || 0);
-      setPage(res.data.currentPage || 1);
+      setTotalCount(res.data.totalCount || res.data.total || 0);
+      setPage(res.data.currentPage || res.data.page || 1);
     } catch (err) {
       console.error('PF load error:', err);
       setError(err.response?.data?.message || 'Failed to load EPF statutory records');
@@ -236,7 +236,7 @@ const EmployeePF = () => {
                 records.map((rec) => (
                   <tr key={rec._id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
-                      {rec.periodMonth} {rec.periodYear}
+                      {rec.periodName || `${rec.periodMonth || rec.month} ${rec.periodYear || rec.year}`}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-900">{rec.employeeName}</div>
@@ -251,18 +251,18 @@ const EmployeePF = () => {
                       {formatINR(rec.employeeContribution)}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-900">{formatINR(rec.totalEmployerPf)}</div>
+                      <div className="font-medium text-slate-900">{formatINR(rec.employerContribution ?? rec.totalEmployerPf ?? 0)}</div>
                       <div className="text-[10px] text-slate-400">
-                        EPS: {formatINR(rec.employerEpsShare)} | EPF: {formatINR(rec.employerEpfShare)}
+                        EPS: {formatINR(rec.epsContribution ?? rec.employerEpsShare ?? 0)} | EPF: {formatINR(rec.epfDifference ?? rec.employerEpfShare ?? 0)}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-slate-900">
-                      {formatINR(rec.totalPfDeposit)}
+                      {formatINR(rec.totalPfAmount ?? rec.totalPfDeposit ?? 0)}
                     </td>
                     <td className="py-3.5 px-4">
-                      {rec.challanTrrn ? (
+                      {(rec.challanNumber || rec.challanTrrn) ? (
                         <div>
-                          <span className="font-mono text-xs font-semibold text-slate-800">{rec.challanTrrn}</span>
+                          <span className="font-mono text-xs font-semibold text-slate-800">{rec.challanNumber || rec.challanTrrn}</span>
                           <span className="block text-[10px] text-slate-400">{formatDate(rec.remittanceDate)}</span>
                         </div>
                       ) : (

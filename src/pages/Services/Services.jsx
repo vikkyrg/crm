@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../api/apiClient';
+import api, { getDownloadUrl } from '../../api/apiClient';
 import { formatINR } from '../../utils/formatters';
 import {
   Server,
@@ -7,6 +7,7 @@ import {
   Search,
   Download,
   Edit2,
+  Trash2,
   CheckCircle,
   XCircle,
   Filter
@@ -113,6 +114,21 @@ const Services = () => {
     }
   };
 
+  const handleDeleteService = async (service) => {
+    if (!window.confirm(`Are you sure you want to delete service "${service.name}" (${service.serviceId})? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      setError('');
+      await api.delete(`/services/${service._id}`);
+      setSuccess(`Service "${service.name}" deleted successfully.`);
+      fetchServices();
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete service');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -123,7 +139,7 @@ const Services = () => {
         </div>
         <div className="flex items-center gap-3">
           <a
-            href={`/api/reports/export/services${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`}
+            href={getDownloadUrl('/api/reports/export/services')}
             download
             className="inline-flex items-center gap-2 px-3 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all"
           >
@@ -231,13 +247,20 @@ const Services = () => {
                         {s.isActive ? 'Active' : 'Inactive'}
                       </button>
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right space-x-1">
                       <button
                         onClick={() => openEditModal(s)}
                         title="Edit Service"
                         className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"
                       >
                         <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteService(s)}
+                        title="Delete Service"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>

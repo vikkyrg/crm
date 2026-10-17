@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { getDownloadUrl } from '../../api/apiClient';
 import { formatDate } from '../../utils/formatters';
 import {
@@ -17,7 +18,9 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  PackageCheck
+  PackageCheck,
+  Receipt,
+  Trash2
 } from 'lucide-react';
 
 const INITIAL_ITEM = {
@@ -43,6 +46,7 @@ const INITIAL_CHALLAN_FORM = {
 };
 
 const DeliveryChallans = () => {
+  const navigate = useNavigate();
   const [challans, setChallans] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +98,7 @@ const DeliveryChallans = () => {
   const fetchClients = async () => {
     try {
       const res = await api.get('/clients?limit=100');
-      setClients(res.data.clients || []);
+      setClients(res.data.data || res.data.clients || []);
     } catch (err) {
       console.error('Failed to load clients list:', err);
     }
@@ -169,6 +173,22 @@ const DeliveryChallans = () => {
     } catch (err) {
       console.error('Status update error:', err);
       setError(err.response?.data?.message || 'Could not update delivery status');
+    }
+  };
+
+  const handleDeleteChallan = async (ch) => {
+    if (!window.confirm(`Are you sure you want to delete Delivery Challan ${ch.challanNumber}? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      setError('');
+      await api.delete(`/delivery-challans/${ch._id}`);
+      setSuccess(`Delivery Challan ${ch.challanNumber} deleted successfully.`);
+      fetchChallans(page);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      console.error('Challan delete error:', err);
+      setError(err.response?.data?.message || 'Failed to delete delivery challan');
     }
   };
 
@@ -296,7 +316,7 @@ const DeliveryChallans = () => {
                       {formatDate(ch.challanDate)}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-900">{ch.clientName}</div>
+                      <div className="font-semibold text-slate-900">{ch.client?.companyName || ch.clientSnapshot?.companyName || 'N/A'}</div>
                       <div className="text-xs text-slate-400 truncate max-w-xs">{ch.deliveryAddress}</div>
                     </td>
                     <td className="py-3.5 px-4">
@@ -337,20 +357,39 @@ const DeliveryChallans = () => {
                         PDF
                       </a>
                       {ch.status !== 'Invoiced' && ch.status !== 'Cancelled' && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setDeliveryModal({ open: true, challan: ch });
+                              setDeliveryForm({
+                                status: ch.status === 'Issued' ? 'Dispatched' : 'Delivered',
+                                receiverName: ch.receiverName || '',
+                                receiverPhone: ch.receiverPhone || '',
+                                deliveryNotes: ch.notes || ''
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                          >
+                            <PackageCheck className="w-3.5 h-3.5" />
+                            Update
+                          </button>
+                          <button
+                            onClick={() => navigate(`/invoices?fromChallan=${ch._id}`)}
+                            title="Generate Material Invoice from this Delivery Challan"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            Invoice
+                          </button>
+                        </>
+                      )}
+                      {(!ch.invoices || ch.invoices.length === 0) && (
                         <button
-                          onClick={() => {
-                            setDeliveryModal({ open: true, challan: ch });
-                            setDeliveryForm({
-                              status: ch.status === 'Issued' ? 'Dispatched' : 'Delivered',
-                              receiverName: ch.receiverName || '',
-                              receiverPhone: ch.receiverPhone || '',
-                              deliveryNotes: ch.notes || ''
-                            });
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                          onClick={() => handleDeleteChallan(ch)}
+                          title="Delete Delivery Challan"
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                         >
-                          <PackageCheck className="w-3.5 h-3.5" />
-                          Update
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </td>

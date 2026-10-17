@@ -55,7 +55,8 @@ const Payroll = () => {
     try {
       setLoading(true);
       const res = await api.get('/payroll');
-      setPayrollRuns(res.data.runs || []);
+      const runs = res.data?.data || res.data?.runs || [];
+      setPayrollRuns(Array.isArray(runs) ? runs : []);
     } catch (err) {
       console.error('Failed to load payroll:', err);
       setError(err.response?.data?.message || 'Failed to load payroll records');
@@ -228,27 +229,27 @@ const Payroll = () => {
                 payrollRuns.map((run) => (
                   <tr key={run._id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-medium text-slate-900">
-                      {run.payrollRunNumber}
+                      {run.payrollCode || run.payrollRunNumber}
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-900">
-                      {run.month} {run.year}
+                      {run.periodName || `${run.month} ${run.year}`}
                     </td>
                     <td className="py-3.5 px-4">
-                      {run.totalEmployees} Employees
+                      {run.totalEmployees || run.items?.length || 0} Employees
                     </td>
                     <td className="py-3.5 px-4 font-medium text-slate-800">
-                      {formatINR(run.totalGrossEarnings)}
+                      {formatINR(run.totalGrossEarnings || 0)}
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="text-xs font-semibold text-slate-900">
-                        {formatINR(run.totalEmployeePf + run.totalEmployerPf)}
+                        {formatINR((run.totalEmployeePf || 0) + (run.totalEmployerPf || 0))}
                       </div>
                       <div className="text-[10px] text-slate-400">
-                        EE: {formatINR(run.totalEmployeePf)} | ER: {formatINR(run.totalEmployerPf)}
+                        EE: {formatINR(run.totalEmployeePf || 0)} | ER: {formatINR(run.totalEmployerPf || 0)}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 font-bold text-blue-600">
-                      {formatINR(run.totalNetPayable)}
+                      {formatINR(run.totalNetPayable || 0)}
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -331,19 +332,27 @@ const Payroll = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center">
                       <div className="text-xs text-slate-500 uppercase font-semibold">Staff Count</div>
-                      <div className="text-xl font-bold text-slate-900 mt-0.5">{previewData.totalEmployees}</div>
+                      <div className="text-xl font-bold text-slate-900 mt-0.5">
+                        {previewData.summary?.totalEmployees || previewData.totalEmployees || previewData.items?.length || 0}
+                      </div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center">
                       <div className="text-xs text-slate-500 uppercase font-semibold">Total Gross</div>
-                      <div className="text-xl font-bold text-slate-900 mt-0.5">{formatINR(previewData.totalGrossEarnings)}</div>
+                      <div className="text-xl font-bold text-slate-900 mt-0.5">
+                        {formatINR(previewData.summary?.totalGrossEarnings || previewData.totalGrossEarnings || 0)}
+                      </div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center">
                       <div className="text-xs text-slate-500 uppercase font-semibold">EPF Accruals</div>
-                      <div className="text-xl font-bold text-emerald-600 mt-0.5">{formatINR(previewData.totalEmployeePf)}</div>
+                      <div className="text-xl font-bold text-emerald-600 mt-0.5">
+                        {formatINR(previewData.summary?.totalEmployeePf || previewData.totalEmployeePf || 0)}
+                      </div>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-center">
                       <div className="text-xs text-blue-700 uppercase font-semibold">Net Disbursement</div>
-                      <div className="text-xl font-bold text-blue-700 mt-0.5">{formatINR(previewData.totalNetPayable)}</div>
+                      <div className="text-xl font-bold text-blue-700 mt-0.5">
+                        {formatINR(previewData.summary?.totalNetPayable || previewData.totalNetPayable || 0)}
+                      </div>
                     </div>
                   </div>
 
@@ -362,13 +371,17 @@ const Payroll = () => {
                         {previewData.items.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50">
                             <td className="py-2.5 px-3 font-semibold text-slate-900">
-                              {item.fullName}
+                              {item.employeeName || item.fullName}
                               <span className="block font-mono text-[10px] text-slate-400">{item.employeeId}</span>
                             </td>
-                            <td className="py-2.5 px-3">{formatINR(item.earnings.grossSalary)}</td>
-                            <td className="py-2.5 px-3 text-emerald-700 font-medium">{formatINR(item.deductions.employeePf)}</td>
-                            <td className="py-2.5 px-3">{formatINR(item.deductions.professionalTax + item.deductions.tds)}</td>
-                            <td className="py-2.5 px-3 font-bold text-blue-600">{formatINR(item.netSalaryPayable)}</td>
+                            <td className="py-2.5 px-3">{formatINR(item.grossEarnings || item.earnings?.grossSalary || 0)}</td>
+                            <td className="py-2.5 px-3 text-emerald-700 font-medium">
+                              {formatINR(item.employeePfContribution || item.deductions?.employeePf || 0)}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {formatINR((item.professionalTax || item.deductions?.professionalTax || 0) + (item.tdsDeduction || item.deductions?.tds || 0))}
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-blue-600">{formatINR(item.netSalaryPayable || 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -406,7 +419,7 @@ const Payroll = () => {
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
-                  Payroll Register — {viewRun.month} {viewRun.year} ({viewRun.payrollRunNumber})
+                  Payroll Register — {viewRun.periodName || `${viewRun.month} ${viewRun.year}`} ({viewRun.payrollCode || viewRun.payrollRunNumber})
                 </h3>
                 <p className="text-xs text-slate-500">Breakdown of earnings, deductions, and payslip generation</p>
               </div>
@@ -432,14 +445,24 @@ const Payroll = () => {
                     {viewRun.items.map((emp) => (
                       <tr key={emp._id} className="hover:bg-slate-50">
                         <td className="py-3 px-3">
-                          <div className="font-bold text-slate-900">{emp.fullName}</div>
+                          <div className="font-bold text-slate-900">{emp.employeeName || emp.fullName}</div>
                           <div className="text-[10px] text-slate-400">{emp.employeeId} &bull; {emp.designation}</div>
                         </td>
-                        <td className="py-3 px-3 font-medium text-slate-900">{formatINR(emp.earnings.grossSalary)}</td>
-                        <td className="py-3 px-3 text-emerald-700">{formatINR(emp.deductions.employeePf)}</td>
-                        <td className="py-3 px-3">{formatINR(emp.deductions.professionalTax + emp.deductions.tds)}</td>
-                        <td className="py-3 px-3 font-semibold text-rose-600">{formatINR(emp.deductions.totalDeductions)}</td>
-                        <td className="py-3 px-3 font-bold text-blue-600">{formatINR(emp.netSalaryPayable)}</td>
+                        <td className="py-3 px-3 font-medium text-slate-900">
+                          {formatINR(emp.grossEarnings || emp.earnings?.grossSalary || 0)}
+                        </td>
+                        <td className="py-3 px-3 text-emerald-700">
+                          {formatINR(emp.employeePfContribution || emp.deductions?.employeePf || 0)}
+                        </td>
+                        <td className="py-3 px-3">
+                          {formatINR((emp.professionalTax || emp.deductions?.professionalTax || 0) + (emp.tdsDeduction || emp.deductions?.tds || 0))}
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-rose-600">
+                          {formatINR(emp.totalEmployeeDeductions || emp.deductions?.totalDeductions || 0)}
+                        </td>
+                        <td className="py-3 px-3 font-bold text-blue-600">
+                          {formatINR(emp.netSalaryPayable || 0)}
+                        </td>
                         <td className="py-3 px-3">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                             emp.paymentStatus === 'Paid'
@@ -451,7 +474,7 @@ const Payroll = () => {
                         </td>
                         <td className="py-3 px-3 text-right space-x-2">
                           <a
-                            href={getDownloadUrl(`/api/payroll/${viewRun._id}/employees/${emp.employeeIdRef}/payslip`)}
+                            href={getDownloadUrl(`/api/payroll/${viewRun._id}/payslip/${emp.employeeId || emp.employeeIdRef || emp.employee}/pdf`)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
@@ -464,8 +487,8 @@ const Payroll = () => {
                               onClick={() => setPaymentModal({
                                 open: true,
                                 runId: viewRun._id,
-                                employeeId: emp.employeeIdRef,
-                                name: emp.fullName
+                                employeeId: emp.employeeId || emp.employeeIdRef || emp.employee,
+                                name: emp.employeeName || emp.fullName
                               })}
                               className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
                             >

@@ -208,7 +208,7 @@ const Dashboard = () => {
             <div>
               <div className="text-xs text-slate-500 font-medium">Workforce & Staff</div>
               <div className="text-xl font-bold text-slate-900">
-                {activeEmployees || 0} <span className="text-xs font-normal text-slate-400">/ {totalEmployees || 0}</span>
+                {activeEmployees ?? kpis?.activeEmployees ?? 0} <span className="text-xs font-normal text-slate-400">/ {totalEmployees ?? kpis?.totalEmployees ?? 0}</span>
               </div>
             </div>
           </div>
@@ -223,10 +223,10 @@ const Dashboard = () => {
             </div>
             <div>
               <div className="text-xs text-slate-500 font-medium">
-                {latestPayroll ? `Payroll (${latestPayroll.month})` : 'Payroll Runs'}
+                {latestPayroll ? `Payroll (${latestPayroll.periodName || latestPayroll.month})` : (kpis?.latestPayrollPeriod && kpis.latestPayrollPeriod !== 'None' ? `Payroll (${kpis.latestPayrollPeriod})` : 'Payroll Runs')}
               </div>
               <div className="text-xl font-bold text-emerald-600">
-                {latestPayroll ? formatINR(latestPayroll.totalNetPayable) : '₹0'}
+                {latestPayroll ? formatINR(latestPayroll.totalNetPayable) : (kpis?.latestPayrollNetPayable ? formatINR(kpis.latestPayrollNetPayable) : '₹0')}
               </div>
             </div>
           </div>
@@ -242,7 +242,7 @@ const Dashboard = () => {
             <div>
               <div className="text-xs text-slate-500 font-medium">Delivery Challans</div>
               <div className="text-xl font-bold text-slate-900">
-                {challanStats?.totalIssued || 0} <span className="text-xs font-normal text-slate-400">issued</span>
+                {challanStats?.totalIssued ?? kpis?.challansIssued ?? 0} <span className="text-xs font-normal text-slate-400">issued</span>
               </div>
             </div>
           </div>
@@ -258,7 +258,7 @@ const Dashboard = () => {
             <div>
               <div className="text-xs text-slate-500 font-medium">EPFO Remittances</div>
               <div className="text-xl font-bold text-slate-900">
-                {pfRemittanceStats?.pendingCount || 0} <span className="text-xs font-normal text-slate-400">pending</span>
+                {pfRemittanceStats?.pendingCount ?? kpis?.pfPendingCount ?? 0} <span className="text-xs font-normal text-slate-400">pending</span>
               </div>
             </div>
           </div>

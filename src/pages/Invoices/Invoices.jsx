@@ -18,7 +18,8 @@ import {
   Edit2,
   ChevronLeft,
   ChevronRight,
-  WalletCards
+  WalletCards,
+  Truck
 } from 'lucide-react';
 
 const Invoices = () => {
@@ -44,6 +45,7 @@ const Invoices = () => {
   ]);
   const [documentDiscount, setDocumentDiscount] = useState(0);
   const [relatedPFDoc, setRelatedPFDoc] = useState(null);
+  const [relatedChallanDoc, setRelatedChallanDoc] = useState(null);
 
   // Advance Amount in Invoice Creation
   const [advanceAmount, setAdvanceAmount] = useState(0);
@@ -62,6 +64,7 @@ const Invoices = () => {
   const openCreateModal = () => {
     setEditInvoice(null);
     setRelatedPFDoc(null);
+    setRelatedChallanDoc(null);
     const defaultClientId = clients[0]?._id || '';
     setSelectedClientId(defaultClientId);
     setInvoiceDate(new Date().toISOString().split('T')[0]);
@@ -82,6 +85,7 @@ const Invoices = () => {
   const openEditModal = (inv) => {
     setEditInvoice(inv);
     setRelatedPFDoc(inv.relatedPFDocument || null);
+    setRelatedChallanDoc(null);
     setSelectedClientId(inv.client?._id || inv.client);
     setInvoiceDate(inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
     setDueDate(inv.dueDate ? new Date(inv.dueDate).toISOString().split('T')[0] : '');
@@ -211,10 +215,56 @@ const Invoices = () => {
       };
 
       loadPFData();
+    } else if (searchParams.get('fromChallan')) {
+      const fromChallanId = searchParams.get('fromChallan');
+      const loadChallanData = async () => {
+        try {
+          setLoadingPFSource(true);
+          setError('');
+          const res = await api.get(`/delivery-challans/${fromChallanId}`);
+          const ch = res.data.data;
+
+          setEditInvoice(null);
+          setRelatedPFDoc(null);
+          setRelatedChallanDoc(ch);
+          const cId = ch.client?._id || ch.client;
+          setSelectedClientId(cId);
+          setInvoiceDate(new Date().toISOString().split('T')[0]);
+          const d = new Date();
+          d.setDate(d.getDate() + 15);
+          setDueDate(d.toISOString().split('T')[0]);
+          setPaymentTerms(ch.termsAndConditions || 'Payment due within 15 days');
+          setInvoiceNotes(`Material supply invoiced against Delivery Challan ${ch.challanNumber}. Site: ${ch.deliveryAddress || 'N/A'}`);
+
+          if (ch.items && ch.items.length > 0) {
+            setItems(ch.items.map(it => ({
+              serviceId: it.itemCode || 'MATERIAL',
+              description: `${it.itemCode ? it.itemCode + ' - ' : ''}${it.description}${it.batchOrSerialNo ? ' (Batch: ' + it.batchOrSerialNo + ')' : ''}`,
+              unitPrice: 0,
+              quantity: it.quantityDelivered || it.quantityDispatched || 1,
+              discountPercent: 0,
+              taxRate: 18,
+              unit: it.unit || 'Nos'
+            })));
+          }
+
+          setDocumentDiscount(0);
+          setAdvanceAmount(0);
+          setAdvanceInputError('');
+          setShowCreateModal(true);
+        } catch (err) {
+          setError(err.response?.data?.message || `Failed to fetch Delivery Challan (${fromChallanId})`);
+        } finally {
+          setLoadingPFSource(false);
+        }
+      };
+
+      loadChallanData();
     } else if (location.state?.convertFromPF) {
       const pf = location.state.convertFromPF;
       setEditInvoice(null);
       setRelatedPFDoc(pf);
+      setRelatedChallanDoc(null);
       const cId = pf.client?._id || pf.client;
       setSelectedClientId(cId);
       setInvoiceDate(new Date().toISOString().split('T')[0]);
@@ -351,18 +401,25 @@ const Invoices = () => {
           advanceAmount: finalAdvance,
           notes: invoiceNotes,
           paymentTerms,
-          relatedPFDocument: relatedPFDoc ? (relatedPFDoc._id || relatedPFDoc) : undefined
+          relatedPFDocument: relatedPFDoc ? (relatedPFDoc._id || relatedPFDoc) : undefined,
+          invoiceType: relatedChallanDoc ? 'Material' : 'Service',
+          projectOrWorkOrder: relatedChallanDoc?.projectOrWorkOrder || undefined,
+          linkedChallans: relatedChallanDoc ? [relatedChallanDoc._id] : undefined,
+          linkedChallanNumbers: relatedChallanDoc ? [relatedChallanDoc.challanNumber] : undefined
         });
-        setSuccess(relatedPFDoc 
+        setSuccess(relatedChallanDoc
+          ? `Material Invoice successfully generated and linked to Delivery Challan ${relatedChallanDoc.challanNumber}!`
+          : relatedPFDoc 
           ? `Invoice successfully generated and linked to PF ${relatedPFDoc.pfNumber || ''}!` 
           : 'Invoice created successfully');
       }
 
       setShowCreateModal(false);
       setRelatedPFDoc(null);
+      setRelatedChallanDoc(null);
       setAdvanceAmount(0);
       setAdvanceInputError('');
-      // Clean query parameter if URL had ?fromPF=...
+      // Clean query parameter if URL had ?fromPF=... or ?fromChallan=...
       if (window.location.search) {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
@@ -736,6 +793,25 @@ const Invoices = () => {
                 <div className="text-right flex-shrink-0 font-semibold text-blue-900">
                   <div className="text-[10px] text-blue-600 uppercase">PF Total</div>
                   <div className="text-sm font-bold">{formatINR(relatedPFDoc.grandTotal)}</div>
+                </div>
+              </div>
+            )}
+
+            {relatedChallanDoc && !editInvoice && (
+              <div className="p-3.5 mb-4 bg-purple-50 border border-purple-200 text-purple-900 rounded-xl text-xs flex items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center flex-shrink-0">
+                    <Truck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-sm text-purple-950 flex items-center gap-1.5">
+                      <span>Generating Material Invoice from Challan:</span>
+                      <span className="font-mono bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">{relatedChallanDoc.challanNumber}</span>
+                    </div>
+                    <p className="text-[11px] text-purple-700 mt-0.5">
+                      Client and dispatched material quantities prefilled. Please specify unit prices and GST rates to issue Material Invoice.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

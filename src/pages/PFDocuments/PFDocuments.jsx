@@ -211,6 +211,21 @@ const PFDocuments = () => {
     navigate(`/invoices?fromPF=${pfDoc._id}`);
   };
 
+  const handleDeletePF = async (doc) => {
+    if (!window.confirm(`Are you sure you want to delete Proforma Document ${doc.pfNumber}? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      setError('');
+      await api.delete(`/pf-documents/${doc._id}`);
+      setSuccess(`PF Document ${doc.pfNumber} deleted successfully.`);
+      fetchDocuments(page);
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete PF document');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -347,15 +362,23 @@ const PFDocuments = () => {
                         >
                           <FileCode className="w-4 h-4" />
                         </a>
-                        {/* Create Invoice / View Invoice action */}
                         {!doc.convertedToInvoiceId ? (
-                          <button
-                            onClick={() => handleConvertToInvoice(doc)}
-                            title="Create Official Invoice from this PF"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-semibold hover:bg-emerald-700 transition-colors ml-1"
-                          >
-                            <Receipt className="w-3.5 h-3.5" /> Create Invoice
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleConvertToInvoice(doc)}
+                              title="Create Official Invoice from this PF"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-semibold hover:bg-emerald-700 transition-colors ml-1"
+                            >
+                              <Receipt className="w-3.5 h-3.5" /> Create Invoice
+                            </button>
+                            <button
+                              onClick={() => handleDeletePF(doc)}
+                              title="Delete PF Document"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         ) : (
                           <button
                             onClick={() => navigate('/invoices', { state: { search: doc.convertedToInvoiceNumber } })}
