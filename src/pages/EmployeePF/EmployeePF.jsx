@@ -36,6 +36,8 @@ const EmployeePF = () => {
   // Batch Remittance Modal State
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchPeriod, setBatchPeriod] = useState({ month: 'October', year: currentYear });
+  const [periodSummary, setPeriodSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [batchForm, setBatchForm] = useState({
     remittanceDate: new Date().toISOString().split('T')[0],
     challanTrrn: '',
@@ -76,8 +78,33 @@ const EmployeePF = () => {
     fetchRecords(1);
   }, [search, monthFilter, yearFilter, statusFilter]);
 
+  const fetchPeriodSummary = async (month, year) => {
+    try {
+      setSummaryLoading(true);
+      const res = await api.get('/employee-pf/pending-summary', {
+        params: { periodMonth: month, periodYear: year }
+      });
+      setPeriodSummary(res.data);
+    } catch (err) {
+      console.error('Pending summary error:', err);
+      setPeriodSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showBatchModal) {
+      fetchPeriodSummary(batchPeriod.month, batchPeriod.year);
+    }
+  }, [showBatchModal, batchPeriod.month, batchPeriod.year]);
+
   const handleBatchRemit = async (e) => {
     e.preventDefault();
+    if (!batchForm.challanTrrn.trim()) {
+      setError('EPFO Challan TRRN reference number is required to confirm remittance');
+      return;
+    }
     try {
       setIsSubmitting(true);
       setError('');
@@ -88,6 +115,12 @@ const EmployeePF = () => {
       });
       setSuccess(res.data.message || 'Period EPF batch marked as remitted!');
       setShowBatchModal(false);
+      setBatchForm({
+        remittanceDate: new Date().toISOString().split('T')[0],
+        challanTrrn: '',
+        bankReference: '',
+        notes: 'EPFO Unified Portal ECR Remittance'
+      });
       fetchRecords(1);
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
@@ -109,7 +142,7 @@ const EmployeePF = () => {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Employee PF & Statutory Records</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Maintain Provident Fund statutory records, 12% EE/ER breakdown, ECR challan TRRN numbers, and EPFO remittances.
+            Maintain payroll-derived PF contribution records, challan references, and manually recorded EPFO remittance status.
           </p>
         </div>
 
@@ -205,17 +238,17 @@ const EmployeePF = () => {
       {/* PF Data Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
+          <table className="w-full text-left text-sm text-slate-600 divide-y divide-slate-200">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Period</th>
-                <th className="py-3 px-4">Employee & UAN</th>
-                <th className="py-3 px-4">PF Wage Base</th>
-                <th className="py-3 px-4">Employee (12%)</th>
-                <th className="py-3 px-4">Employer (EPS+EPF)</th>
-                <th className="py-3 px-4">Total Deposit</th>
-                <th className="py-3 px-4">Challan / TRRN</th>
-                <th className="py-3 px-4 text-right">Status</th>
+                <th scope="col" className="py-3 px-4 w-[140px] whitespace-nowrap">Period</th>
+                <th scope="col" className="py-3 px-4 min-w-[200px]">Employee & UAN</th>
+                <th scope="col" className="py-3 px-4 w-[130px] whitespace-nowrap">PF Wage Base</th>
+                <th scope="col" className="py-3 px-4 w-[150px] whitespace-nowrap">EE Contribution</th>
+                <th scope="col" className="py-3 px-4 min-w-[180px]">Employer (EPS+EPF)</th>
+                <th scope="col" className="py-3 px-4 w-[130px] whitespace-nowrap">Total Deposit</th>
+                <th scope="col" className="py-3 px-4 min-w-[160px]">Challan / TRRN</th>
+                <th scope="col" className="py-3 px-4 w-[140px] text-right whitespace-nowrap">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal">
@@ -235,31 +268,33 @@ const EmployeePF = () => {
               ) : (
                 records.map((rec) => (
                   <tr key={rec._id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">
+                    <td className="py-3.5 px-4 font-semibold text-slate-900 whitespace-nowrap align-middle">
                       {rec.periodName || `${rec.periodMonth || rec.month} ${rec.periodYear || rec.year}`}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="font-semibold text-slate-900">{rec.employeeName}</div>
-                      <div className="text-xs text-slate-400 font-mono">
-                        UAN: {rec.uan || 'N/A'} &bull; {rec.employeeId}
+                      <div className="text-xs text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                        <span>UAN: {rec.uan || 'N/A'}</span>
+                        <span>•</span>
+                        <span>{rec.employeeId}</span>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-medium text-slate-800">
+                    <td className="py-3.5 px-4 font-medium text-slate-800 whitespace-nowrap align-middle">
                       {formatINR(rec.pfWageBase)}
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-emerald-700">
+                    <td className="py-3.5 px-4 font-semibold text-emerald-700 whitespace-nowrap align-middle">
                       {formatINR(rec.employeeContribution)}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="font-medium text-slate-900">{formatINR(rec.employerContribution ?? rec.totalEmployerPf ?? 0)}</div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[10px] text-slate-400 whitespace-nowrap">
                         EPS: {formatINR(rec.epsContribution ?? rec.employerEpsShare ?? 0)} | EPF: {formatINR(rec.epfDifference ?? rec.employerEpfShare ?? 0)}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap align-middle">
                       {formatINR(rec.totalPfAmount ?? rec.totalPfDeposit ?? 0)}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       {(rec.challanNumber || rec.challanTrrn) ? (
                         <div>
                           <span className="font-mono text-xs font-semibold text-slate-800">{rec.challanNumber || rec.challanTrrn}</span>
@@ -269,13 +304,13 @@ const EmployeePF = () => {
                         <span className="text-xs text-slate-400 italic">Unremitted</span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                    <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
                         rec.remittanceStatus === 'Remitted'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
                       }`}>
-                        {rec.remittanceStatus}
+                        {rec.remittanceStatus === 'Remitted' ? 'Remitted to EPFO' : 'Pending Remittance'}
                       </span>
                     </td>
                   </tr>
@@ -314,8 +349,19 @@ const EmployeePF = () => {
       {showBatchModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 animate-in fade-in zoom-in-95">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Record EPFO Period Remittance</h3>
-            <p className="text-xs text-slate-500 mb-4">Link ECR Challan TRRN reference to update all employee records for the chosen month</p>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-bold text-slate-900">Record EPFO Period Remittance</h3>
+              <button
+                type="button"
+                onClick={() => setShowBatchModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Link ECR Challan TRRN reference to update all employee records for the chosen month
+            </p>
 
             <form onSubmit={handleBatchRemit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -345,6 +391,54 @@ const EmployeePF = () => {
                 </div>
               </div>
 
+              {/* Live Period Remittance Summary */}
+              {summaryLoading ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500">
+                  Checking eligible records for {batchPeriod.month} {batchPeriod.year}...
+                </div>
+              ) : periodSummary ? (
+                <div className="space-y-2">
+                  <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl">
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="font-semibold text-emerald-900">
+                        Eligible Pending Records:
+                      </span>
+                      <span className="font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
+                        {periodSummary.pendingCount} Employees
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-emerald-800">
+                      <div>
+                        <span className="text-[11px] text-emerald-600 block">Total Pool Deposit</span>
+                        <span className="font-bold text-sm text-emerald-950">
+                          {formatINR(periodSummary.summary?.totalDeposit || 0)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-emerald-600 block">EE + ER Breakdown</span>
+                        <span className="text-xs font-semibold text-emerald-950">
+                          {formatINR(periodSummary.summary?.totalEmployeeShare || 0)} + {formatINR(periodSummary.summary?.totalEmployerShare || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {periodSummary.pendingCount === 0 && periodSummary.alreadyRemittedCount > 0 && (
+                    <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <span>All {periodSummary.alreadyRemittedCount} record(s) for this period have already been remitted.</span>
+                    </div>
+                  )}
+
+                  {periodSummary.pendingCount === 0 && periodSummary.alreadyRemittedCount === 0 && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span>No PF records found for this period. Finalize monthly payroll first.</span>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">EPFO Challan TRRN Number *</label>
                 <input
@@ -353,7 +447,7 @@ const EmployeePF = () => {
                   placeholder="e.g. TRRN-202610-1234567"
                   value={batchForm.challanTrrn}
                   onChange={(e) => setBatchForm({ ...batchForm, challanTrrn: e.target.value })}
-                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 font-mono uppercase"
+                  className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 font-mono uppercase focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -383,16 +477,16 @@ const EmployeePF = () => {
                 <button
                   type="button"
                   onClick={() => setShowBatchModal(false)}
-                  className="w-1/2 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg"
+                  className="w-1/2 py-2 text-sm font-medium text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-1/2 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm disabled:opacity-50"
+                  disabled={isSubmitting || summaryLoading || (periodSummary && periodSummary.pendingCount === 0)}
+                  className="w-1/2 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm disabled:opacity-50 transition-all"
                 >
-                  {isSubmitting ? 'Recording...' : 'Update Remittances'}
+                  {isSubmitting ? 'Recording...' : 'Confirm Remittance'}
                 </button>
               </div>
             </form>

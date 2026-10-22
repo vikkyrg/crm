@@ -177,10 +177,14 @@ const EmployeeProfile = () => {
           </div>
           <div className="space-y-2 text-xs text-slate-600">
             <div className="flex justify-between">
-              <span>PF Eligible:</span>
-              <span className={`font-semibold ${statutoryInfo?.isPfEligible ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {statutoryInfo?.isPfEligible ? 'YES (12%)' : 'NO'}
+              <span>PF Applicable / Eligible:</span>
+              <span className={`font-semibold ${statutoryInfo?.pfApplicable || statutoryInfo?.isPfEligible ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {statutoryInfo?.pfApplicable || statutoryInfo?.isPfEligible ? 'YES' : 'NO'}
               </span>
+            </div>
+            <div className="flex justify-between">
+              <span>PF wage basis:</span>
+              <span className="font-semibold text-slate-900">{statutoryInfo?.pfWageBasis || 'Basic'}</span>
             </div>
             <div>
               <span className="text-slate-400 block text-[11px]">Universal Account No (UAN):</span>
@@ -193,8 +197,22 @@ const EmployeeProfile = () => {
             <div className="flex justify-between">
               <span>Wage Ceiling Applied:</span>
               <span className="font-semibold text-slate-900">
-                {statutoryInfo?.restrictPfWageLimit ? '₹15,000 / mo' : 'Actual Basic'}
+                {statutoryInfo?.restrictPfWageLimit ? 'Configured ceiling' : 'No employee cap enabled'}
               </span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-slate-100">
+              <span>ESI Applicable / Eligible:</span>
+              <span className={`font-semibold ${statutoryInfo?.esiApplicable && statutoryInfo?.esiEligibilityConfirmed ? 'text-emerald-600' : 'text-slate-400'}`}>
+                {statutoryInfo?.esiApplicable && statutoryInfo?.esiEligibilityConfirmed ? 'YES' : 'NO'}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[11px]">ESI Insurance / IP No:</span>
+              <span className="font-mono font-semibold text-slate-900">{statutoryInfo?.esiInsuranceNumber || statutoryInfo?.esiNumber || 'N/A'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>ESI wage basis:</span>
+              <span className="font-semibold text-slate-900">{statutoryInfo?.esiWageBasis || 'Gross'}</span>
             </div>
           </div>
         </div>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { getDownloadUrl } from '../../api/apiClient';
+import api from '../../api/apiClient';
 import {
-  BarChart3,
   Download,
   Users,
   Receipt,
@@ -21,106 +20,141 @@ const reports = [
     id: 'clients',
     name: 'Client Directory Register',
     description: 'Comprehensive directory of active and archived clients with contact info, locations, and GSTINs.',
-    icon: Users,
-    endpoint: '/api/reports/export/clients'
+    icon: Users
   },
   {
     id: 'invoices',
     name: 'Tax Invoices Master Register',
     description: 'Complete billing ledger of all issued invoices, GST breakdowns (CGST/SGST/IGST), and balances.',
-    icon: Receipt,
-    endpoint: '/api/reports/export/invoices'
+    icon: Receipt
   },
   {
     id: 'material-invoices',
     name: 'Material Invoices Register',
     description: 'Invoices issued against material supplies, equipment delivery, and site challans.',
-    icon: Package,
-    endpoint: '/api/reports/export/material-invoices'
+    icon: Package
   },
   {
     id: 'delivery-challans',
     name: 'Delivery Challans Register',
     description: 'Dispatch records, client delivery sites, transporter and vehicle logs, and receipt acknowledgments.',
-    icon: Truck,
-    endpoint: '/api/reports/export/delivery-challans'
+    icon: Truck
   },
   {
     id: 'employees',
     name: 'Employee Directory & Salary Register',
     description: 'Staff directory, designations, departments, statutory status, and monthly salary structures.',
-    icon: Briefcase,
-    endpoint: '/api/reports/export/employees'
+    icon: Briefcase
   },
   {
     id: 'payroll',
     name: 'Monthly Payroll Register',
     description: 'Gross earnings, statutory EPF and PT deductions, net disbursements, and transaction references.',
-    icon: FileText,
-    endpoint: '/api/reports/export/payroll'
+    icon: FileText
   },
   {
     id: 'employee-pf',
     name: 'EPFO Statutory PF Register',
     description: 'Universal Account Numbers (UAN), wage bases, 12% employee/employer shares, and TRRN remittances.',
-    icon: ShieldCheck,
-    endpoint: '/api/reports/export/employee-pf'
+    icon: ShieldCheck
   },
   {
     id: 'pf-documents',
     name: 'PF Documents & Quotations Register',
     description: 'Detailed log of all estimates, quotes, proformas, status changes, and conversion references.',
-    icon: FileSpreadsheet,
-    endpoint: '/api/reports/export/pf-documents'
+    icon: FileSpreadsheet
   },
   {
     id: 'advances',
     name: 'Advance Receipts & Retainer Ledger',
     description: 'Record of all client advance payments, unallocated balances, and invoice settlement trails.',
-    icon: WalletCards,
-    endpoint: '/api/reports/export/advances'
+    icon: WalletCards
   },
   {
     id: 'quantities',
     name: 'Quantity Deliverables Register',
     description: 'Log of delivered service quantities, deliverables, units of measurement, and client references.',
-    icon: Layers,
-    endpoint: '/api/reports/export/quantities'
+    icon: Layers
   },
   {
     id: 'services',
     name: 'Services & Rate Catalog Report',
     description: 'Current service portfolio, default pricing tiers, SAC codes, and applicable tax rates.',
-    icon: Server,
-    endpoint: '/api/reports/export/services'
+    icon: Server
   }
 ];
 
 const Reports = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [downloadingReport, setDownloadingReport] = useState('');
+  const [downloadStatus, setDownloadStatus] = useState({});
 
-  const buildDownloadUrl = (endpoint, reportId) => {
-    const params = new URLSearchParams();
-    const token = localStorage.getItem('innomatrics_token');
-    if (token) params.append('token', token);
+  const downloadReport = async (report) => {
+    setDownloadingReport(report.id);
+    setDownloadStatus((current) => ({ ...current, [report.id]: null }));
 
-    // Apply date filters only to date-relevant registers
-    if (['invoices', 'material-invoices', 'delivery-challans', 'pf-documents', 'advances', 'quantities', 'payroll'].includes(reportId)) {
-      if (startDate) params.append('startDate', startDate);
-      if (endDate) params.append('endDate', endDate);
+    const params = { format: 'pdf' };
+    if (['invoices', 'material-invoices', 'delivery-challans', 'pf-documents', 'advances', 'quantities', 'payroll'].includes(report.id)) {
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
     }
 
-    const qs = params.toString();
-    const finalPath = qs ? `${endpoint}?${qs}` : endpoint;
-    return getDownloadUrl(finalPath);
+    try {
+      const response = await api.get(`/reports/export/${report.id}`, {
+        params,
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const disposition = response.headers['content-disposition'] || '';
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+        || `${report.id}-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+
+      const empty = response.headers['x-report-empty'] === 'true';
+      setDownloadStatus((current) => ({
+        ...current,
+        [report.id]: {
+          type: empty ? 'info' : 'success',
+          message: empty
+            ? 'No records matched the selected filters. An empty PDF report was downloaded.'
+            : 'PDF report downloaded successfully.'
+        }
+      }));
+    } catch (error) {
+      let message = error.response?.data?.message;
+      if (!message && error.response?.data instanceof Blob) {
+        try {
+          const errorBody = JSON.parse(await error.response.data.text());
+          message = errorBody.message;
+        } catch {
+          message = '';
+        }
+      }
+      setDownloadStatus((current) => ({
+        ...current,
+        [report.id]: {
+          type: 'error',
+          message: message || 'Unable to generate this PDF report. Please try again.'
+        }
+      }));
+    } finally {
+      setDownloadingReport('');
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="pb-4 border-b border-slate-200">
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Business Reports & Data Exports</h1>
-        <p className="text-sm text-slate-500">Download Excel-compatible CSV registers for audit, tax filing, EPFO compliance, and accounting.</p>
+        <p className="text-sm text-slate-500">Download formatted PDF registers for audit, tax filing, EPFO compliance, and accounting.</p>
       </div>
 
       {/* Date Filter Bar */}
@@ -163,7 +197,6 @@ const Reports = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {reports.map((report) => {
           const Icon = report.icon;
-          const downloadUrl = buildDownloadUrl(report.endpoint, report.id);
 
           return (
             <div
@@ -176,7 +209,7 @@ const Reports = () => {
                     <Icon className="w-5 h-5" />
                   </div>
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                    CSV FORMAT
+                    PDF REPORT
                   </span>
                 </div>
                 <h3 className="font-bold text-slate-900 text-base mb-1.5">{report.name}</h3>
@@ -184,15 +217,31 @@ const Reports = () => {
               </div>
 
               <div className="pt-4 mt-4 border-t border-slate-100 flex justify-end">
-                <a
-                  href={downloadUrl}
-                  download
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition-colors shadow-sm"
+                <button
+                  type="button"
+                  data-testid={`download-pdf-${report.id}`}
+                  onClick={() => downloadReport(report)}
+                  disabled={Boolean(downloadingReport)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-wait"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Download CSV
-                </a>
+                  {downloadingReport === report.id ? 'Generating PDF...' : 'Download PDF'}
+                </button>
               </div>
+              {downloadStatus[report.id] && (
+                <p
+                  role="status"
+                  className={`mt-2 text-xs ${
+                    downloadStatus[report.id].type === 'error'
+                      ? 'text-red-600'
+                      : downloadStatus[report.id].type === 'info'
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
+                  }`}
+                >
+                  {downloadStatus[report.id].message}
+                </p>
+              )}
             </div>
           );
         })}

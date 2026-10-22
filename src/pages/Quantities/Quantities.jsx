@@ -35,19 +35,41 @@ const Quantities = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const openAddModal = () => {
+  const openAddModal = async () => {
     setEditRecord(null);
-    setSelectedClientId(clients[0]?._id || '');
-    if (services.length > 0) {
-      setSelectedServiceId(services[0]._id);
-      setUnit(services[0].unit || 'Units');
-      setPriceSnapshot(services[0].defaultUnitPrice);
+    let currentClients = clients;
+    let currentServices = services;
+
+    if (currentClients.length === 0 || currentServices.length === 0) {
+      try {
+        const [cRes, sRes] = await Promise.all([
+          api.get('/clients?limit=100'),
+          api.get('/services?limit=100')
+        ]);
+        currentClients = cRes.data.data || [];
+        currentServices = sRes.data.data || [];
+        setClients(currentClients);
+        setServices(currentServices);
+      } catch (err) {
+        console.error('Failed to load dependencies', err);
+      }
+    }
+
+    const initialClientId = selectedClientId || currentClients[0]?._id || '';
+    const initialService = currentServices.find(s => s._id === selectedServiceId) || currentServices[0];
+    
+    setSelectedClientId(initialClientId);
+    if (initialService) {
+      setSelectedServiceId(initialService._id);
+      setUnit(initialService.unit || 'Units');
+      setPriceSnapshot(initialService.defaultUnitPrice !== undefined ? initialService.defaultUnitPrice : '');
     }
     setQuantity('1');
     setRelatedPF('');
     setRelatedInvoice('');
     setDate(new Date().toISOString().split('T')[0]);
     setNotes('');
+    setError('');
     setShowModal(true);
   };
 
@@ -93,8 +115,19 @@ const Quantities = () => {
         api.get('/clients?limit=100'),
         api.get('/services?limit=100')
       ]);
-      setClients(cRes.data.data);
-      setServices(sRes.data.data);
+      const fetchedClients = cRes.data.data || [];
+      const fetchedServices = sRes.data.data || [];
+      setClients(fetchedClients);
+      setServices(fetchedServices);
+
+      if (fetchedClients.length > 0 && !selectedClientId) {
+        setSelectedClientId(fetchedClients[0]._id);
+      }
+      if (fetchedServices.length > 0 && !selectedServiceId) {
+        setSelectedServiceId(fetchedServices[0]._id);
+        setUnit(fetchedServices[0].unit || 'Units');
+        setPriceSnapshot(fetchedServices[0].defaultUnitPrice !== undefined ? fetchedServices[0].defaultUnitPrice : '');
+      }
     } catch (err) {
       console.error(err);
     }
@@ -179,6 +212,7 @@ const Quantities = () => {
           </a>
           <button
             onClick={openAddModal}
+            data-testid="add-quantity-btn"
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -210,52 +244,53 @@ const Quantities = () => {
       {/* Quantity Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+          <table className="w-full min-w-[900px] text-left border-collapse text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Record ID</th>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Client</th>
-                <th className="py-3 px-4">Service</th>
-                <th className="py-3 px-4">Quantity / Unit</th>
-                <th className="py-3 px-4">Price Snapshot</th>
-                <th className="py-3 px-4">Reference Docs</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3.5 px-4 w-[140px] whitespace-nowrap">Record ID</th>
+                <th className="py-3.5 px-4 w-[110px] whitespace-nowrap">Date</th>
+                <th className="py-3.5 px-4 min-w-[160px]">Client</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Service</th>
+                <th className="py-3.5 px-4 w-[130px] whitespace-nowrap">Quantity / Unit</th>
+                <th className="py-3.5 px-4 w-[120px] whitespace-nowrap">Price Snapshot</th>
+                <th className="py-3.5 px-4 w-[130px] whitespace-nowrap">Reference Docs</th>
+                <th className="py-3.5 px-4 w-[100px] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center text-slate-500">
+                  <td colSpan="8" className="py-12 text-center text-slate-500 align-middle">
                     <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                     Loading quantity logs...
                   </td>
                 </tr>
               ) : quantities.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="py-12 text-center text-slate-500">
+                  <td colSpan="8" className="py-12 text-center text-slate-500 align-middle">
                     No quantity records logged.
                   </td>
                 </tr>
               ) : (
                 quantities.map((q) => (
                   <tr key={q._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600">{q.recordId}</td>
-                    <td className="py-3 px-4 text-slate-600">{formatDate(q.date)}</td>
-                    <td className="py-3 px-4 font-medium text-slate-900">{q.clientSnapshot?.companyName}</td>
-                    <td className="py-3 px-4 text-slate-700">
-                      <div>{q.serviceName}</div>
+                    <td className="py-3 px-4 font-mono font-bold text-blue-600 align-middle whitespace-nowrap">{q.recordId}</td>
+                    <td className="py-3 px-4 text-slate-600 align-middle whitespace-nowrap">{formatDate(q.date)}</td>
+                    <td className="py-3 px-4 font-medium text-slate-900 align-middle">{q.clientSnapshot?.companyName}</td>
+                    <td className="py-3 px-4 text-slate-700 align-middle">
+                      <div className="font-medium text-slate-800">{q.serviceName}</div>
                       <div className="text-xs font-mono text-slate-400">{q.serviceId}</div>
+                      {q.notes && <div className="text-xs text-slate-500 italic mt-0.5">{q.notes}</div>}
                     </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{q.quantity} {q.unit}</td>
-                    <td className="py-3 px-4 text-slate-700">{formatINR(q.unitPriceSnapshot)}</td>
-                    <td className="py-3 px-4 text-xs font-mono text-slate-500">
+                    <td className="py-3 px-4 font-bold text-slate-900 align-middle whitespace-nowrap">{q.quantity} {q.unit}</td>
+                    <td className="py-3 px-4 text-slate-700 align-middle whitespace-nowrap">{formatINR(q.unitPriceSnapshot)}</td>
+                    <td className="py-3 px-4 text-xs font-mono text-slate-500 align-middle whitespace-nowrap">
                       {q.relatedPFNumber && <div>PF: {q.relatedPFNumber}</div>}
                       {q.relatedInvoiceNumber && <div>INV: {q.relatedInvoiceNumber}</div>}
                       {!q.relatedPFNumber && !q.relatedInvoiceNumber && <span>-</span>}
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-3 px-4 text-right align-middle whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => openEditModal(q)}
                           className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded"
@@ -467,6 +502,7 @@ const Quantities = () => {
                 </button>
                 <button
                   type="submit"
+                  data-testid="save-quantity-btn"
                   className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm"
                 >
                   Save Log

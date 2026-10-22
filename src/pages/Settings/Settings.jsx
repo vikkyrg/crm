@@ -8,9 +8,6 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  Users,
-  Plus,
-  Trash2,
   Shield
 } from 'lucide-react';
 
@@ -39,23 +36,12 @@ const Settings = () => {
     advancePrefix: 'ADV-2026-',
     defaultPaymentTerms: '',
     defaultNotes: '',
-    companyLogo: ''
+    companyLogo: '',
+    statutoryPayrollRules: {
+      pf: { employeeRate: '', employerRate: '', wageCeiling: '', epsRate: '', effectiveFrom: '', effectiveTo: '' },
+      esi: { employeeRate: '', employerRate: '', wageCeiling: '', effectiveFrom: '', effectiveTo: '' }
+    }
   });
-
-  // Employee / Account Manager State
-  const [employees, setEmployees] = useState([]);
-  const [empLoading, setEmpLoading] = useState(false);
-  const [showAddEmpModal, setShowAddEmpModal] = useState(false);
-  const [newEmp, setNewEmp] = useState({
-    name: '',
-    email: '',
-    role: 'Staff',
-    employeeId: '',
-    phone: '',
-    password: ''
-  });
-  const [empSuccess, setEmpSuccess] = useState('');
-  const [empError, setEmpError] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -135,7 +121,21 @@ const Settings = () => {
       setLoading(true);
       const res = await api.get('/settings');
       if (res.data.data) {
-        setFormData(res.data.data);
+        const current = res.data.data;
+        const defaults = {
+          pf: { employeeRate: '', employerRate: '', wageCeiling: '', epsRate: '', effectiveFrom: '', effectiveTo: '' },
+          esi: { employeeRate: '', employerRate: '', wageCeiling: '', effectiveFrom: '', effectiveTo: '' }
+        };
+        const statutoryPayrollRules = {};
+        ['pf', 'esi'].forEach((scheme) => {
+          statutoryPayrollRules[scheme] = { ...defaults[scheme] };
+          Object.entries(current.statutoryPayrollRules?.[scheme] || {}).forEach(([key, value]) => {
+            statutoryPayrollRules[scheme][key] = value instanceof Date
+              ? value.toISOString().slice(0, 10)
+              : (value ? String(value).slice(0, 10) : '');
+          });
+        });
+        setFormData({ ...formData, ...current, statutoryPayrollRules });
       }
     } catch (err) {
       console.error(err);
@@ -145,58 +145,9 @@ const Settings = () => {
     }
   };
 
-  const fetchEmployees = async () => {
-    try {
-      setEmpLoading(true);
-      const res = await api.get('/auth/users');
-      setEmployees(res.data.data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setEmpLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchSettings();
-    fetchEmployees();
   }, []);
-
-  const handleCreateEmployee = async (e) => {
-    e.preventDefault();
-    setEmpError('');
-    setEmpSuccess('');
-
-    try {
-      const res = await api.post('/auth/users', newEmp);
-      setEmpSuccess(`Employee ${res.data.data.name} added successfully! Now available in Client Project Assignments.`);
-      setShowAddEmpModal(false);
-      setNewEmp({
-        name: '',
-        email: '',
-        role: 'Staff',
-        employeeId: '',
-        phone: '',
-        password: ''
-      });
-      fetchEmployees();
-      setTimeout(() => setEmpSuccess(''), 5000);
-    } catch (err) {
-      setEmpError(err.response?.data?.message || 'Failed to add employee');
-    }
-  };
-
-  const handleDeleteEmployee = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to remove employee "${name}"?`)) return;
-    try {
-      await api.delete(`/auth/users/${id}`);
-      setEmpSuccess(`Employee ${name} removed.`);
-      fetchEmployees();
-      setTimeout(() => setEmpSuccess(''), 4000);
-    } catch (err) {
-      alert(err.response?.data?.message || 'Cannot remove employee');
-    }
-  };
 
   const handleChange = (e) => {
     setFormData({
@@ -212,7 +163,16 @@ const Settings = () => {
     setSuccess('');
 
     try {
-      await api.put('/settings', formData);
+      const statutoryPayrollRules = {};
+      ['pf', 'esi'].forEach((scheme) => {
+        statutoryPayrollRules[scheme] = {};
+        Object.entries(formData.statutoryPayrollRules?.[scheme] || {}).forEach(([key, value]) => {
+          statutoryPayrollRules[scheme][key] = ['effectiveFrom', 'effectiveTo'].includes(key)
+            ? (value || null)
+            : (value === '' || value === null ? null : Number(value));
+        });
+      });
+      await api.put('/settings', { ...formData, statutoryPayrollRules });
       setSuccess('Company profile and billing configurations saved successfully');
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
@@ -348,7 +308,7 @@ const Settings = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">City</label>
               <input
@@ -367,16 +327,6 @@ const Settings = () => {
                 value={formData.state}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">State Code (GST)</label>
-              <input
-                type="text"
-                name="stateCode"
-                value={formData.stateCode}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none font-mono"
               />
             </div>
             <div>
@@ -489,6 +439,60 @@ const Settings = () => {
           </div>
         </div>
 
+        {/* Payroll Statutory Rule Configuration */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 text-base font-bold text-slate-900 pb-2 border-b border-slate-100">
+            <Shield className="w-5 h-5 text-blue-600" />
+            <span>Payroll Statutory Estimate Configuration</span>
+          </div>
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            These are organization-configured estimate inputs, not verified legal advice. Enter rates, ceilings, and effective dates approved for your payroll; rules with no effective start date are not applied. Verify current Indian statutory requirements before processing payroll.
+          </p>
+          {['pf', 'esi'].map((scheme) => {
+            const rules = formData.statutoryPayrollRules?.[scheme] || {};
+            const updateRule = (field, value) => setFormData({
+              ...formData,
+              statutoryPayrollRules: {
+                ...formData.statutoryPayrollRules,
+                [scheme]: { ...rules, [field]: value }
+              }
+            });
+            return (
+              <div key={scheme} className="border border-slate-200 rounded-xl p-4 space-y-3">
+                <h3 className="font-semibold text-sm text-slate-800">{scheme.toUpperCase()} rates and eligibility ceiling</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <label className="text-xs font-medium text-slate-600">
+                    Employee rate (%)
+                    <input type="number" min="0" max="100" step="0.01" value={rules.employeeRate ?? ''} onChange={(e) => updateRule('employeeRate', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Employer rate (%)
+                    <input type="number" min="0" max="100" step="0.01" value={rules.employerRate ?? ''} onChange={(e) => updateRule('employerRate', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Wage ceiling (₹ / month)
+                    <input type="number" min="0" step="0.01" required={scheme === 'esi' && Boolean(rules.employeeRate || rules.employerRate)} value={rules.wageCeiling ?? ''} onChange={(e) => updateRule('wageCeiling', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </label>
+                  {scheme === 'pf' && (
+                    <label className="text-xs font-medium text-slate-600">
+                      EPS rate (%)
+                      <input type="number" min="0" max="100" step="0.01" value={rules.epsRate ?? ''} onChange={(e) => updateRule('epsRate', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                    </label>
+                  )}
+                  <label className="text-xs font-medium text-slate-600">
+                    Effective from *
+                    <input type="date" required={Boolean(rules.employeeRate || rules.employerRate)} value={rules.effectiveFrom || ''} onChange={(e) => updateRule('effectiveFrom', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">
+                    Effective to
+                    <input type="date" value={rules.effectiveTo || ''} onChange={(e) => updateRule('effectiveTo', e.target.value)} className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Submit */}
         <div className="flex justify-end">
           <button
@@ -578,197 +582,6 @@ const Settings = () => {
         </form>
       </div>
 
-      {/* Staff & Project Account Managers Management Section */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <div className="flex items-center gap-2 text-base font-bold text-slate-900">
-              <Users className="w-5 h-5 text-blue-600" />
-              <span>Employees & Project Account Managers</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Add team members here. Registered employees automatically populate in the Client Management project assigning dropdown.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAddEmpModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all self-start sm:self-auto"
-          >
-            <Plus className="w-4 h-4" />
-            Add Employee
-          </button>
-        </div>
-
-        {empSuccess && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-medium">
-            {empSuccess}
-          </div>
-        )}
-
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase border-b border-slate-200">
-              <tr>
-                <th className="py-2.5 px-4">Employee ID</th>
-                <th className="py-2.5 px-4">Full Name</th>
-                <th className="py-2.5 px-4">Role</th>
-                <th className="py-2.5 px-4">Email</th>
-                <th className="py-2.5 px-4">Phone</th>
-                <th className="py-2.5 px-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {empLoading ? (
-                <tr>
-                  <td colSpan="6" className="py-8 text-center text-slate-400">Loading employees...</td>
-                </tr>
-              ) : employees.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="py-8 text-center text-slate-400">No employees registered yet.</td>
-                </tr>
-              ) : (
-                employees.map((emp) => (
-                  <tr key={emp._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-800">{emp.employeeId || 'EMP-N/A'}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{emp.name}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                        emp.role === 'Administrator' ? 'bg-purple-50 text-purple-700' :
-                        emp.role === 'Finance' ? 'bg-emerald-50 text-emerald-700' :
-                        'bg-blue-50 text-blue-700'
-                      }`}>
-                        {emp.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-mono text-slate-600">{emp.email}</td>
-                    <td className="py-3 px-4">{emp.phone || '-'}</td>
-                    <td className="py-3 px-4 text-right">
-                      {emp.role !== 'Administrator' && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteEmployee(emp._id, emp.name)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
-                          title="Remove employee"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add Employee Modal */}
-      {showAddEmpModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h2 className="text-lg font-bold text-slate-900 mb-1">Add Team Member / Account Manager</h2>
-            <p className="text-xs text-slate-500 mb-4">
-              Registered members will automatically appear in the Client Profile project assignment selector.
-            </p>
-
-            {empError && (
-              <div className="p-3 mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
-                {empError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateEmployee} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Rahul Verma"
-                  value={newEmp.name}
-                  onChange={(e) => setNewEmp({ ...newEmp, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. rahul@innomatrics.com"
-                  value={newEmp.email}
-                  onChange={(e) => setNewEmp({ ...newEmp, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Role</label>
-                  <select
-                    value={newEmp.role}
-                    onChange={(e) => setNewEmp({ ...newEmp, role: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"
-                  >
-                    <option value="Staff">Staff / Account Manager</option>
-                    <option value="Administrator">Administrator</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Employee ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. EMP-003"
-                    value={newEmp.employeeId}
-                    onChange={(e) => setNewEmp({ ...newEmp, employeeId: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Phone Number</label>
-                <input
-                  type="text"
-                  placeholder="+91 98765 43210"
-                  value={newEmp.phone}
-                  onChange={(e) => setNewEmp({ ...newEmp, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Default Password</label>
-                <input
-                  type="text"
-                  placeholder="Defaults to Innomatrics123!"
-                  value={newEmp.password}
-                  onChange={(e) => setNewEmp({ ...newEmp, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none font-mono"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddEmpModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 shadow-sm"
-                >
-                  Save Employee
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

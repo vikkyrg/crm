@@ -6,11 +6,9 @@ import {
   FileSpreadsheet,
   Receipt,
   Layers,
-  WalletCards,
   Server,
   BarChart3,
   Settings,
-  Building2,
   ChevronRight,
   Briefcase,
   FileText,
@@ -18,14 +16,15 @@ import {
   Truck,
   X
 } from 'lucide-react';
+import logo from '../../logo.png';
 
 const coreNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
   { name: 'Clients', path: '/clients', icon: Users },
   { name: 'PF Documents', path: '/pf-documents', icon: FileSpreadsheet },
   { name: 'Invoices', path: '/invoices', icon: Receipt },
+  { name: 'Material Invoice', path: '/material-invoices', icon: Receipt },
   { name: 'Quantity Management', path: '/quantities', icon: Layers },
-  { name: 'Advance Payments', path: '/advances', icon: WalletCards },
   { name: 'Services', path: '/services', icon: Server }
 ];
 
@@ -60,15 +59,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       >
         {/* Brand Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-950/60">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="font-bold text-white text-base tracking-tight leading-none">INNOMATRICS</h1>
-              <span className="text-[10px] text-blue-400 font-semibold tracking-wider uppercase">CRM & ERP Suite</span>
-            </div>
-          </div>
+          <img src={logo} alt="Navadurga Electricals" className="h-auto max-h-12 w-[170px] object-contain" />
           {/* Mobile Close Button */}
           <button
             onClick={onClose}
@@ -181,7 +172,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         {/* Footer System Info */}
         <div className="p-4 border-t border-slate-800/60 bg-slate-950/30 text-[11px] text-slate-400">
           <div className="flex items-center justify-between">
-            <span>Innomatrics ERP</span>
+            <span>Navadurga ERP</span>
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Online

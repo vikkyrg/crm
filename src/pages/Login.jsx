@@ -36,7 +36,7 @@ const Login = () => {
           </div>
         </div>
         <h2 className="mt-4 text-center text-2xl font-bold tracking-tight text-white">
-          Innomatrics Technologies
+          Navadurga Electricals
         </h2>
         <p className="mt-1 text-center text-sm text-slate-400">
           Enterprise CRM & GST Billing Management System
@@ -67,7 +67,7 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
-                  placeholder="admin@innomatrics.com"
+                  placeholder="name@company.com"
                 />
               </div>
             </div>

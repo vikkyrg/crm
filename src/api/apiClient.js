@@ -7,7 +7,13 @@ export const API_BASE_URL = rawBaseURL.replace(/\/+$/, ''); // without trailing 
 // Helper to construct full URL for document downloads / CSV exports (works both locally and in deployment)
 export const getDownloadUrl = (path) => {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return API_BASE_URL ? `${API_BASE_URL}${cleanPath}` : cleanPath;
+  const base = API_BASE_URL ? `${API_BASE_URL}${cleanPath}` : cleanPath;
+  const token = localStorage.getItem('innomatrics_token');
+  if (token && !base.includes('token=')) {
+    const separator = base.includes('?') ? '&' : '?';
+    return `${base}${separator}token=${encodeURIComponent(token)}`;
+  }
+  return base;
 };
 
 const api = axios.create({

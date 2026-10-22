@@ -22,7 +22,7 @@ import {
   Truck
 } from 'lucide-react';
 
-const Invoices = () => {
+const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
   const location = useLocation();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +31,8 @@ const Invoices = () => {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
+  const [roundingPolicy, setRoundingPolicy] = useState('round_to_nearest');
+  const [companyStateCode, setCompanyStateCode] = useState('09');
 
   // Create/Edit Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -40,8 +42,10 @@ const Invoices = () => {
   const [dueDate, setDueDate] = useState('');
   const [paymentTerms, setPaymentTerms] = useState('Payment due within 15 days');
   const [invoiceNotes, setInvoiceNotes] = useState('');
+  const [projectOrWorkOrder, setProjectOrWorkOrder] = useState('');
+  const [submissionKey, setSubmissionKey] = useState('');
   const [items, setItems] = useState([
-    { serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
+    { itemCode: '', serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
   ]);
   const [documentDiscount, setDocumentDiscount] = useState(0);
   const [relatedPFDoc, setRelatedPFDoc] = useState(null);
@@ -57,6 +61,7 @@ const Invoices = () => {
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [paymentRef, setPaymentRef] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [viewInvoice, setViewInvoice] = useState(null);
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -73,8 +78,10 @@ const Invoices = () => {
     setDueDate(d.toISOString().split('T')[0]);
     setPaymentTerms('Payment due within 15 days');
     setInvoiceNotes('');
+    setProjectOrWorkOrder('');
+    setSubmissionKey(window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     setItems([
-      { serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
+      { itemCode: '', serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: invoiceTypeFilter === 'Material' ? 'Nos' : 'Units' }
     ]);
     setDocumentDiscount(0);
     setAdvanceAmount(0);
@@ -91,8 +98,11 @@ const Invoices = () => {
     setDueDate(inv.dueDate ? new Date(inv.dueDate).toISOString().split('T')[0] : '');
     setPaymentTerms(inv.paymentTerms || 'Payment due within 15 days');
     setInvoiceNotes(inv.notes || '');
+    setProjectOrWorkOrder(inv.projectOrWorkOrder || '');
+    setSubmissionKey('');
     if (inv.items && inv.items.length > 0) {
       setItems(inv.items.map(it => ({
+        itemCode: it.itemCode || '',
         serviceId: it.serviceId || '',
         description: it.description || '',
         unitPrice: it.unitPrice || 0,
@@ -102,7 +112,7 @@ const Invoices = () => {
         unit: it.unit || 'Units'
       })));
     } else {
-      setItems([{ serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }]);
+      setItems([{ itemCode: '', serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }]);
     }
     setDocumentDiscount(inv.documentDiscount || 0);
     setAdvanceAmount(inv.advanceAmount || inv.amountPaid || 0);
@@ -123,6 +133,7 @@ const Invoices = () => {
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (overdueOnly) params.overdueOnly = 'true';
+      if (invoiceTypeFilter) params.invoiceType = invoiceTypeFilter;
 
       const res = await api.get('/invoices', { params });
       setInvoices(res.data.data);
@@ -137,12 +148,15 @@ const Invoices = () => {
 
   const fetchDependencies = async () => {
     try {
-      const [cRes, sRes] = await Promise.all([
+      const [cRes, sRes, settingsRes] = await Promise.all([
         api.get('/clients?limit=100'),
-        api.get('/services?limit=100')
+        api.get('/services?limit=100'),
+        api.get('/settings')
       ]);
       setClients(cRes.data.data);
       setServices(sRes.data.data);
+      setRoundingPolicy(settingsRes.data.data?.roundingPolicy || 'round_to_nearest');
+      setCompanyStateCode(settingsRes.data.data?.stateCode || '09');
     } catch (err) {
       console.error(err);
     }
@@ -151,7 +165,7 @@ const Invoices = () => {
   useEffect(() => {
     setPage(1);
     fetchInvoices(1);
-  }, [search, statusFilter, overdueOnly]);
+  }, [search, statusFilter, overdueOnly, invoiceTypeFilter]);
 
   useEffect(() => {
     fetchDependencies();
@@ -193,7 +207,8 @@ const Invoices = () => {
 
           if (pf.items && pf.items.length > 0) {
             setItems(pf.items.map(it => ({
-              serviceId: it.serviceId || '',
+                itemCode: it.itemCode || '',
+                serviceId: it.serviceId || '',
               description: it.description || '',
               unitPrice: it.unitPrice || 0,
               quantity: it.quantity || 1,
@@ -229,6 +244,7 @@ const Invoices = () => {
           setRelatedChallanDoc(ch);
           const cId = ch.client?._id || ch.client;
           setSelectedClientId(cId);
+          setProjectOrWorkOrder(ch.projectOrWorkOrder || '');
           setInvoiceDate(new Date().toISOString().split('T')[0]);
           const d = new Date();
           d.setDate(d.getDate() + 15);
@@ -238,6 +254,7 @@ const Invoices = () => {
 
           if (ch.items && ch.items.length > 0) {
             setItems(ch.items.map(it => ({
+              itemCode: it.itemCode || '',
               serviceId: it.itemCode || 'MATERIAL',
               description: `${it.itemCode ? it.itemCode + ' - ' : ''}${it.description}${it.batchOrSerialNo ? ' (Batch: ' + it.batchOrSerialNo + ')' : ''}`,
               unitPrice: 0,
@@ -275,6 +292,7 @@ const Invoices = () => {
       setInvoiceNotes(pf.notes || `Generated from Proforma Document ${pf.pfNumber}`);
       if (pf.items && pf.items.length > 0) {
         setItems(pf.items.map(it => ({
+          itemCode: it.itemCode || '',
           serviceId: it.serviceId || '',
           description: it.description || '',
           unitPrice: it.unitPrice || 0,
@@ -295,7 +313,7 @@ const Invoices = () => {
   const handleAddItemRow = () => {
     setItems([
       ...items,
-      { serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
+      { itemCode: '', serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: invoiceTypeFilter === 'Material' ? 'Nos' : 'Units' }
     ]);
   };
 
@@ -312,6 +330,7 @@ const Invoices = () => {
       const srv = services.find((s) => s.serviceId === value);
       if (srv) {
         updated[index].description = srv.name;
+        updated[index].itemCode = srv.serviceId;
         updated[index].unitPrice = srv.defaultUnitPrice;
         updated[index].taxRate = srv.taxRate;
         updated[index].unit = srv.unit || 'Units';
@@ -322,13 +341,19 @@ const Invoices = () => {
   };
 
   const selectedClientObj = clients.find((c) => c._id === selectedClientId);
-  const isInterState = Boolean(selectedClientObj?.stateCode && selectedClientObj?.stateCode !== '09');
+  const isMaterialInvoice = invoiceTypeFilter === 'Material' ||
+    Boolean(relatedChallanDoc) ||
+    editInvoice?.invoiceType === 'Material';
+  const isInterState = Boolean(selectedClientObj?.stateCode && selectedClientObj?.stateCode !== companyStateCode);
 
   const calculatedLines = items.map((it) => calculateClientLine(it, isInterState));
   const previewSubtotal = calculatedLines.reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0);
+  const previewItemDiscounts = calculatedLines.reduce((acc, curr) => acc + curr.discountAmount, 0);
   const previewTaxable = calculatedLines.reduce((acc, curr) => acc + curr.taxableAmount, 0) - Number(documentDiscount || 0);
   const previewTax = calculatedLines.reduce((acc, curr) => acc + curr.totalTax, 0);
-  const previewGrandTotal = Math.round(previewTaxable + previewTax);
+  const rawPreviewGrandTotal = Number((previewTaxable + previewTax).toFixed(2));
+  const previewGrandTotal = roundingPolicy === 'none' ? rawPreviewGrandTotal : Math.round(rawPreviewGrandTotal);
+  const previewRoundOff = Number((previewGrandTotal - rawPreviewGrandTotal).toFixed(2));
 
   // Advance Calculation Breakdown
   const numericAdvanceAmount = Number(advanceAmount) || 0;
@@ -379,6 +404,7 @@ const Invoices = () => {
 
     setError('');
     setIsSubmitting(true);
+    const activeSubmissionKey = submissionKey || window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     try {
       if (editInvoice) {
@@ -386,6 +412,7 @@ const Invoices = () => {
           invoiceDate,
           dueDate: dueDate || null,
           items,
+          projectOrWorkOrder,
           documentDiscount: Number(documentDiscount) || 0,
           notes: invoiceNotes,
           paymentTerms
@@ -393,6 +420,7 @@ const Invoices = () => {
         setSuccess('Invoice updated successfully');
       } else {
         await api.post('/invoices', {
+          submissionKey: activeSubmissionKey,
           clientId: selectedClientId,
           invoiceDate,
           dueDate: dueDate || null,
@@ -402,8 +430,8 @@ const Invoices = () => {
           notes: invoiceNotes,
           paymentTerms,
           relatedPFDocument: relatedPFDoc ? (relatedPFDoc._id || relatedPFDoc) : undefined,
-          invoiceType: relatedChallanDoc ? 'Material' : 'Service',
-          projectOrWorkOrder: relatedChallanDoc?.projectOrWorkOrder || undefined,
+          invoiceType: relatedChallanDoc ? 'Material' : (invoiceTypeFilter || 'Service'),
+          projectOrWorkOrder: relatedChallanDoc?.projectOrWorkOrder || projectOrWorkOrder || undefined,
           linkedChallans: relatedChallanDoc ? [relatedChallanDoc._id] : undefined,
           linkedChallanNumbers: relatedChallanDoc ? [relatedChallanDoc.challanNumber] : undefined
         });
@@ -418,6 +446,7 @@ const Invoices = () => {
       setRelatedPFDoc(null);
       setRelatedChallanDoc(null);
       setAdvanceAmount(0);
+      setSubmissionKey('');
       setAdvanceInputError('');
       // Clean query parameter if URL had ?fromPF=... or ?fromChallan=...
       if (window.location.search) {
@@ -458,12 +487,21 @@ const Invoices = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tax Invoices & Billing Management</h1>
-          <p className="text-sm text-slate-500">Official GST compliant invoices, payment tracking, balance reconciliation, and document exports.</p>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            {invoiceTypeFilter === 'Material' ? 'Material Invoices' : 'Tax Invoices & Billing Management'}
+          </h1>
+          <p className="text-sm text-slate-500">
+            {invoiceTypeFilter === 'Material'
+              ? 'Sales invoices for physical materials supplied to existing clients.'
+              : 'Official GST invoices, payment tracking, balance reconciliation, and document exports.'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <a
-            href={getDownloadUrl(`/api/reports/export/invoices${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
+            href={getDownloadUrl(`/api/reports/export/invoices?${new URLSearchParams({
+              ...(invoiceTypeFilter ? { invoiceType: invoiceTypeFilter } : {}),
+              ...(localStorage.getItem('innomatrics_token') ? { token: localStorage.getItem('innomatrics_token') } : {})
+            }).toString()}`)}
             download
             className="inline-flex items-center gap-2 px-3 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-all"
           >
@@ -475,7 +513,7 @@ const Invoices = () => {
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all"
           >
             <Plus className="w-4 h-4" />
-            Create Invoice
+            {invoiceTypeFilter === 'Material' ? 'Create Material Invoice' : 'Create Invoice'}
           </button>
         </div>
       </div>
@@ -526,17 +564,17 @@ const Invoices = () => {
       {/* Invoices List Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+          <table className="w-full text-left border-collapse text-sm divide-y divide-slate-200">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Invoice No</th>
-                <th className="py-3 px-4">Dates</th>
-                <th className="py-3 px-4">Client</th>
-                <th className="py-3 px-4">Grand Total</th>
-                <th className="py-3 px-4">Paid</th>
-                <th className="py-3 px-4">Outstanding</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th scope="col" className="py-3 px-4 w-[150px] whitespace-nowrap">Invoice No</th>
+                <th scope="col" className="py-3 px-4 w-[140px] whitespace-nowrap">Dates</th>
+                <th scope="col" className="py-3 px-4 min-w-[200px]">Client</th>
+                <th scope="col" className="py-3 px-4 w-[130px] whitespace-nowrap">Grand Total</th>
+                <th scope="col" className="py-3 px-4 w-[110px] whitespace-nowrap">Paid</th>
+                <th scope="col" className="py-3 px-4 w-[120px] whitespace-nowrap">Outstanding</th>
+                <th scope="col" className="py-3 px-4 w-[140px] whitespace-nowrap">Status</th>
+                <th scope="col" className="py-3 px-4 w-[180px] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -556,60 +594,74 @@ const Invoices = () => {
               ) : (
                 invoices.map((inv) => (
                   <tr key={inv._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600">{inv.invoiceNumber}</td>
-                    <td className="py-3 px-4 text-xs text-slate-600">
+                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600 whitespace-nowrap align-middle">
+                      {inv.invoiceNumber}
+                    </td>
+                    <td className="py-3.5 px-4 text-xs text-slate-600 whitespace-nowrap align-middle">
                       <div>Date: {formatDate(inv.invoiceDate)}</div>
                       <div className="text-slate-400">Due: {formatDate(inv.dueDate)}</div>
                     </td>
-                    <td className="py-3 px-4 font-medium text-slate-900">
-                      <div>{inv.clientSnapshot?.companyName}</div>
+                    <td className="py-3.5 px-4 font-medium text-slate-900 align-middle">
+                      <div>{inv.clientSnapshot?.companyName || '—'}</div>
                       {inv.relatedPFNumber && (
                         <div className="text-xs font-mono text-purple-600">PF: {inv.relatedPFNumber}</div>
                       )}
                     </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{formatINR(inv.grandTotal)}</td>
-                    <td className="py-3 px-4 font-semibold text-emerald-600">{formatINR(inv.amountPaid)}</td>
-                    <td className="py-3 px-4 font-bold text-amber-700">{formatINR(inv.outstandingBalance)}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap align-middle">
+                      {formatINR(inv.grandTotal)}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-emerald-600 whitespace-nowrap align-middle">
+                      {formatINR(inv.amountPaid)}
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-amber-700 whitespace-nowrap align-middle">
+                      {formatINR(inv.outstandingBalance)}
+                    </td>
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                      <span className={`inline-flex flex-col px-2.5 py-1 rounded-lg text-xs font-semibold ${
                         inv.status === 'Paid'
-                          ? 'bg-emerald-50 text-emerald-700'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : inv.status === 'Partially Paid'
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-blue-50 text-blue-700'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-blue-50 text-blue-700 border border-blue-200'
                       }`}>
-                        {inv.status}
+                        <span>{inv.status}</span>
+                        <span className="text-[10px] font-normal text-slate-500 mt-0.5">
+                          Payment: {inv.paymentStatus || (inv.status === 'Paid' ? 'Paid' : inv.amountPaid > 0 ? 'Partially Paid' : 'Pending')}
+                        </span>
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Edit Action */}
+                    <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setViewInvoice(inv)}
+                          title="View Invoice"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => openEditModal(inv)}
                           title="Edit Invoice"
-                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        {/* Download PDF */}
                         <a
                           href={getDownloadUrl(`/api/invoices/${inv._id}/pdf${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
                           download
                           title="Download PDF"
-                          className="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded"
+                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <FileText className="w-4 h-4" />
                         </a>
-                        {/* Download Word Docx */}
                         <a
                           href={getDownloadUrl(`/api/invoices/${inv._id}/docx${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
                           download
                           title="Download Word .docx"
-                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <FileCode className="w-4 h-4" />
                         </a>
-                        {/* Record Payment Button */}
                         {inv.outstandingBalance > 0 && (
                           <button
                             onClick={() => {
@@ -617,7 +669,7 @@ const Invoices = () => {
                               setPaymentAmount(inv.outstandingBalance);
                             }}
                             title="Record Payment"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-semibold hover:bg-emerald-700 transition-colors ml-1"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 text-white rounded-md text-xs font-semibold hover:bg-emerald-700 transition-colors ml-1 shadow-sm"
                           >
                             <DollarSign className="w-3.5 h-3.5" /> Pay
                           </button>
@@ -754,12 +806,84 @@ const Invoices = () => {
         </div>
       )}
 
+      {viewInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {viewInvoice.invoiceType === 'Material' ? 'Material Invoice' : 'Tax Invoice'} {viewInvoice.invoiceNumber}
+                </h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  {viewInvoice.clientSnapshot?.companyName} · {formatDate(viewInvoice.invoiceDate)} · Due {formatDate(viewInvoice.dueDate)}
+                </p>
+              </div>
+              <button onClick={() => setViewInvoice(null)} className="text-slate-400 hover:text-slate-700 text-xl font-bold" aria-label="Close invoice details">&times;</button>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3 py-4 text-sm">
+              <div><span className="text-slate-500">Billing address: </span>{[viewInvoice.clientSnapshot?.billingAddress, viewInvoice.clientSnapshot?.city, viewInvoice.clientSnapshot?.state, viewInvoice.clientSnapshot?.pincode].filter(Boolean).join(', ') || 'Not recorded'}</div>
+              <div><span className="text-slate-500">Project / Work Order: </span>{viewInvoice.projectOrWorkOrder || '—'}</div>
+              <div><span className="text-slate-500">Invoice status: </span>{viewInvoice.status}</div>
+              <div><span className="text-slate-500">Payment status: </span>{viewInvoice.paymentStatus || (viewInvoice.status === 'Paid' ? 'Paid' : viewInvoice.amountPaid > 0 ? 'Partially Paid' : 'Pending')}</div>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-600 uppercase">
+                  <tr>
+                    <th className="p-3">Code</th><th className="p-3">Description</th><th className="p-3">Qty / Unit</th>
+                    <th className="p-3 text-right">Unit Price</th><th className="p-3 text-right">Tax</th><th className="p-3 text-right">Line Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(viewInvoice.items || []).map((item, index) => (
+                    <tr key={`${item._id || item.itemCode}-${index}`}>
+                      <td className="p-3 font-mono">{item.itemCode || item.serviceId || '—'}</td>
+                      <td className="p-3">{item.description}</td>
+                      <td className="p-3">{item.quantity} {item.unit}</td>
+                      <td className="p-3 text-right">{formatINR(item.unitPrice)}</td>
+                      <td className="p-3 text-right">{formatINR(item.totalTax)}</td>
+                      <td className="p-3 text-right font-semibold">{formatINR(item.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="ml-auto mt-4 max-w-xs space-y-1.5 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{formatINR(viewInvoice.subtotal)}</span></div>
+              <div className="flex justify-between"><span>Item discounts</span><span>- {formatINR(viewInvoice.totalItemDiscounts)}</span></div>
+              <div className="flex justify-between"><span>Discount</span><span>{formatINR(viewInvoice.documentDiscount)}</span></div>
+              <div className="flex justify-between"><span>CGST / SGST / IGST</span><span>{formatINR(viewInvoice.cgstTotal)} / {formatINR(viewInvoice.sgstTotal)} / {formatINR(viewInvoice.igstTotal)}</span></div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold"><span>Grand total</span><span>{formatINR(viewInvoice.grandTotal)}</span></div>
+              <div className="flex justify-between text-emerald-700"><span>Amount paid</span><span>{formatINR(viewInvoice.amountPaid)}</span></div>
+              <div className="flex justify-between font-semibold text-amber-700"><span>Outstanding</span><span>{formatINR(viewInvoice.outstandingBalance)}</span></div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5 border-t border-slate-200 pt-4">
+              <a
+                href={getDownloadUrl(`/api/invoices/${viewInvoice._id}/pdf${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+              >
+                Download / Print PDF
+              </a>
+              <button onClick={() => setViewInvoice(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Invoice Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl">
             <h2 className="text-xl font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-              <span>{editInvoice ? `Edit Tax Invoice (${editInvoice.invoiceNumber})` : 'Generate Official GST Tax Invoice'}</span>
+              <span>
+                {editInvoice
+                  ? `Edit ${editInvoice.invoiceType === 'Material' ? 'Material Invoice' : 'Tax Invoice'} (${editInvoice.invoiceNumber})`
+                  : invoiceTypeFilter === 'Material' || relatedChallanDoc
+                    ? 'Create Material Sales Invoice'
+                    : 'Generate Official GST Tax Invoice'}
+              </span>
               <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-50 text-blue-700">
                 {isInterState ? 'Inter-State Supply (IGST)' : 'Intra-State Supply (CGST + SGST)'}
               </span>
@@ -840,6 +964,11 @@ const Invoices = () => {
                       </option>
                     ))}
                   </select>
+                  {selectedClientObj && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Billing address: {[selectedClientObj.billingAddress, selectedClientObj.city, selectedClientObj.state, selectedClientObj.pincode].filter(Boolean).join(', ') || 'No billing address on client record'}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -863,42 +992,66 @@ const Invoices = () => {
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"
                   />
                 </div>
+                <div className="sm:col-span-3">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Project / Work Order Reference (Optional)</label>
+                  <input
+                    type="text"
+                    value={projectOrWorkOrder}
+                    onChange={(e) => setProjectOrWorkOrder(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"
+                  />
+                </div>
               </div>
 
               {/* Service Line Items */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Services Billed</h3>
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                    {isMaterialInvoice ? 'Material Items' : 'Services Billed'}
+                  </h3>
                   <button
                     type="button"
                     onClick={handleAddItemRow}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add Service Line
+                    <Plus className="w-3.5 h-3.5" /> Add {isMaterialInvoice ? 'Material Item' : 'Service Line'}
                   </button>
                 </div>
 
                 <div className="space-y-3">
                   {items.map((item, idx) => (
                     <div key={idx} className="p-3 border border-slate-200 rounded-xl bg-white grid grid-cols-12 gap-2 items-center text-xs">
-                      <div className="col-span-12 sm:col-span-4">
-                        <label className="text-[10px] text-slate-500 font-semibold uppercase">Catalog Item</label>
-                        <select
-                          value={item.serviceId}
-                          onChange={(e) => handleItemChange(idx, 'serviceId', e.target.value)}
-                          className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
-                        >
-                          <option value="">-- Choose Catalog Service --</option>
-                          {services.map((s) => (
-                            <option key={s._id} value={s.serviceId}>
-                              {s.name} (₹{s.defaultUnitPrice})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {!isMaterialInvoice ? (
+                        <div className="col-span-12 sm:col-span-3">
+                          <label className="text-[10px] text-slate-500 font-semibold uppercase">Catalog Service (Optional)</label>
+                          <select
+                            value={item.serviceId}
+                            onChange={(e) => handleItemChange(idx, 'serviceId', e.target.value)}
+                            className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
+                          >
+                            <option value="">-- Choose Catalog Service --</option>
+                            {services.map((s) => (
+                              <option key={s._id} value={s.serviceId}>
+                                {s.name} (₹{s.defaultUnitPrice})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="col-span-6 sm:col-span-2">
+                          <label className="text-[10px] text-slate-500 font-semibold uppercase">Item Code *</label>
+                          <input
+                            type="text"
+                            required
+                            value={item.itemCode || ''}
+                            onChange={(e) => handleItemChange(idx, 'itemCode', e.target.value)}
+                            className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
+                          />
+                        </div>
+                      )}
 
                       <div className="col-span-12 sm:col-span-3">
-                        <label className="text-[10px] text-slate-500 font-semibold uppercase">Description</label>
+                        <label className="text-[10px] text-slate-500 font-semibold uppercase">{isMaterialInvoice ? 'Item Name / Description *' : 'Description'}</label>
                         <input
                           type="text"
                           required
@@ -906,7 +1059,23 @@ const Invoices = () => {
                           onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
                           className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
                         />
+                        <span className="text-[10px] text-slate-500">
+                          Line amount: {formatINR(calculatedLines[idx]?.lineTotal || 0)}
+                        </span>
                       </div>
+
+                      {isMaterialInvoice && (
+                        <div className="col-span-4 sm:col-span-1">
+                          <label className="text-[10px] text-slate-500 font-semibold uppercase">Unit *</label>
+                          <input
+                            type="text"
+                            required
+                            value={item.unit || ''}
+                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                            className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
+                          />
+                        </div>
+                      )}
 
                       <div className="col-span-4 sm:col-span-2">
                         <label className="text-[10px] text-slate-500 font-semibold uppercase">Price (₹)</label>
@@ -930,6 +1099,20 @@ const Invoices = () => {
                           required
                           value={item.quantity}
                           onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
+                          className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
+                        />
+                      </div>
+
+                      <div className="col-span-3 sm:col-span-1">
+                        <label className="text-[10px] text-slate-500 font-semibold uppercase">GST %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          required
+                          value={item.taxRate}
+                          onChange={(e) => handleItemChange(idx, 'taxRate', e.target.value)}
                           className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
                         />
                       </div>
@@ -979,14 +1162,32 @@ const Invoices = () => {
                     <span>Subtotal:</span>
                     <span className="font-semibold text-slate-900">{formatINR(previewSubtotal)}</span>
                   </div>
+                  {previewItemDiscounts > 0 && (
+                    <div className="flex justify-between">
+                      <span>Item Discounts:</span>
+                      <span className="font-semibold text-slate-900">- {formatINR(previewItemDiscounts)}</span>
+                    </div>
+                  )}
+                  {Number(documentDiscount) > 0 && (
+                    <div className="flex justify-between">
+                      <span>Document Discount:</span>
+                      <span className="font-semibold text-slate-900">- {formatINR(documentDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>Taxable Value:</span>
                     <span className="font-semibold text-slate-900">{formatINR(previewTaxable)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>GST (18%):</span>
+                    <span>GST:</span>
                     <span className="font-semibold text-slate-900">{formatINR(previewTax)}</span>
                   </div>
+                  {previewRoundOff !== 0 && (
+                    <div className="flex justify-between">
+                      <span>Round Off:</span>
+                      <span className="font-semibold text-slate-900">{formatINR(previewRoundOff)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-blue-700">
                     <span>Grand Total:</span>
                     <span>{formatINR(previewGrandTotal)}</span>

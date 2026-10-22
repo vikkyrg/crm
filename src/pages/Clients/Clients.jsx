@@ -278,16 +278,16 @@ const Clients = () => {
       {/* Clients Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+          <table className="w-full text-left border-collapse text-sm divide-y divide-slate-200">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                <th className="py-3 px-4">Client ID</th>
-                <th className="py-3 px-4">Company Name</th>
-                <th className="py-3 px-4">Contact Person</th>
-                <th className="py-3 px-4">Contact Details</th>
-                <th className="py-3 px-4">Location & GST</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th scope="col" className="py-3 px-4 w-[140px] whitespace-nowrap">Client ID</th>
+                <th scope="col" className="py-3 px-4 min-w-[200px]">Company Name</th>
+                <th scope="col" className="py-3 px-4 min-w-[150px]">Contact Person</th>
+                <th scope="col" className="py-3 px-4 min-w-[180px]">Contact Details</th>
+                <th scope="col" className="py-3 px-4 min-w-[160px]">Location & GST</th>
+                <th scope="col" className="py-3 px-4 w-[110px] whitespace-nowrap">Status</th>
+                <th scope="col" className="py-3 px-4 w-[130px] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -307,58 +307,58 @@ const Clients = () => {
               ) : (
                 clients.map((c) => (
                   <tr key={c._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-semibold text-blue-600">
+                    <td className="py-3.5 px-4 font-mono font-semibold text-blue-600 whitespace-nowrap align-middle">
                       <Link to={`/clients/${c._id}`} className="hover:underline">
                         {c.clientId}
                       </Link>
                     </td>
-                    <td className="py-3 px-4 font-medium text-slate-900">
-                      <Link to={`/clients/${c._id}`} className="hover:text-blue-600">
+                    <td className="py-3.5 px-4 font-medium text-slate-900 align-middle">
+                      <Link to={`/clients/${c._id}`} className="hover:text-blue-600 font-semibold">
                         {c.companyName}
                       </Link>
                     </td>
-                    <td className="py-3 px-4 text-slate-700">{c.contactPerson}</td>
-                    <td className="py-3 px-4 text-slate-600">
+                    <td className="py-3.5 px-4 text-slate-700 align-middle">{c.contactPerson}</td>
+                    <td className="py-3.5 px-4 text-slate-600 align-middle">
                       <div>{c.primaryPhone}</div>
                       <div className="text-xs text-slate-400">{c.email}</div>
                     </td>
-                    <td className="py-3 px-4 text-slate-600">
+                    <td className="py-3.5 px-4 text-slate-600 align-middle">
                       <div>{c.city}, {c.state}</div>
                       <div className="text-xs font-mono text-slate-400">{c.gstin || 'No GSTIN'}</div>
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                       <button
                         onClick={() => handleToggleStatus(c._id)}
                         title="Click to toggle status"
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold cursor-pointer ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold cursor-pointer border ${
                           c.isActive
-                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                         }`}
                       >
                         {c.isActive ? 'Active' : 'Archived'}
                       </button>
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1">
                         <Link
                           to={`/clients/${c._id}`}
                           title="View Profile"
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         >
                           <Eye className="w-4 h-4" />
                         </Link>
                         <button
                           onClick={() => openEditModal(c)}
                           title="Edit Client"
-                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => openDeleteModal(c)}
                           title="Permanently Delete Client"
-                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded"
+                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

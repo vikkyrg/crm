@@ -19,7 +19,7 @@ const Navbar = ({ title, breadcrumb, onToggleSidebar }) => {
 
         <div>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-            <span className="hidden sm:inline">Innomatrics CRM</span>
+            <span className="hidden sm:inline">Navadurga CRM</span>
             <span className="hidden sm:inline">/</span>
             <span className="text-slate-800 font-semibold">{breadcrumb || title}</span>
           </div>

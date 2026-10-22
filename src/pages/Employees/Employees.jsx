@@ -65,16 +65,23 @@ const INITIAL_FORM = {
     uan: '',
     pfAccountNumber: '',
     esiNumber: '',
-    isPfEligible: true,
-    restrictPfWageLimit: true
+    pfApplicable: false,
+    isPfEligible: false,
+    pfWageBasis: 'Basic',
+    restrictPfWageLimit: false,
+    esiApplicable: false,
+    isEsiEligible: false,
+    esiWageBasis: 'Gross',
+    esiEligibilityConfirmed: false
   },
   salaryStructure: {
-    basicSalary: 30000,
-    hra: 15000,
-    conveyanceAllowance: 1600,
-    medicalAllowance: 1250,
-    specialAllowance: 5000,
-    professionalTax: 200,
+    basicSalary: '',
+    hra: 0,
+    conveyanceAllowance: 0,
+    medicalAllowance: 0,
+    specialAllowance: 0,
+    otherAllowances: 0,
+    professionalTax: 0,
     tdsMonthly: 0
   },
   notes: ''
@@ -170,16 +177,23 @@ const Employees = () => {
         uan: emp.statutoryInfo?.uan || '',
         pfAccountNumber: emp.statutoryInfo?.pfAccountNumber || '',
         esiNumber: emp.statutoryInfo?.esiNumber || '',
-        isPfEligible: emp.statutoryInfo?.isPfEligible ?? true,
-        restrictPfWageLimit: emp.statutoryInfo?.restrictPfWageLimit ?? true
+        pfApplicable: emp.statutoryInfo?.pfApplicable ?? emp.statutoryInfo?.isPfEligible ?? false,
+        isPfEligible: emp.statutoryInfo?.isPfEligible ?? emp.statutoryInfo?.pfApplicable ?? false,
+        pfWageBasis: emp.statutoryInfo?.pfWageBasis || 'Basic',
+        restrictPfWageLimit: emp.statutoryInfo?.restrictPfWageLimit ?? emp.statutoryInfo?.pfWageLimitApplicable ?? false,
+        esiApplicable: emp.statutoryInfo?.esiApplicable ?? false,
+        isEsiEligible: emp.statutoryInfo?.isEsiEligible ?? false,
+        esiWageBasis: emp.statutoryInfo?.esiWageBasis || 'Gross',
+        esiEligibilityConfirmed: emp.statutoryInfo?.esiEligibilityConfirmed ?? false
       },
       salaryStructure: {
-        basicSalary: emp.salaryStructure?.basicSalary ?? 30000,
-        hra: emp.salaryStructure?.hra ?? 15000,
-        conveyanceAllowance: emp.salaryStructure?.conveyanceAllowance ?? 1600,
-        medicalAllowance: emp.salaryStructure?.medicalAllowance ?? 1250,
-        specialAllowance: emp.salaryStructure?.specialAllowance ?? 5000,
-        professionalTax: emp.salaryStructure?.professionalTax ?? 200,
+        basicSalary: emp.salaryStructure?.basicSalary ?? 0,
+        hra: emp.salaryStructure?.hra ?? 0,
+        conveyanceAllowance: emp.salaryStructure?.conveyanceAllowance ?? 0,
+        medicalAllowance: emp.salaryStructure?.medicalAllowance ?? 0,
+        specialAllowance: emp.salaryStructure?.specialAllowance ?? 0,
+        otherAllowances: emp.salaryStructure?.otherAllowances ?? 0,
+        professionalTax: emp.salaryStructure?.professionalTax ?? 0,
         tdsMonthly: emp.salaryStructure?.tdsMonthly ?? 0
       },
       notes: emp.notes || ''
@@ -192,12 +206,37 @@ const Employees = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (formData.statutoryInfo.uan && !/^\d{12}$/.test(formData.statutoryInfo.uan)) {
+      setError('UAN must contain exactly 12 digits');
+      setActiveTab('statutory');
+      return;
+    }
+    if (formData.statutoryInfo.pfApplicable && !formData.statutoryInfo.isPfEligible) {
+      setError('Confirm that PF applies to this employee or switch PF off');
+      setActiveTab('statutory');
+      return;
+    }
+    if (formData.statutoryInfo.esiApplicable && !formData.statutoryInfo.esiEligibilityConfirmed) {
+      setError('Confirm ESI eligibility or switch ESI off');
+      setActiveTab('statutory');
+      return;
+    }
+    const submission = {
+      ...formData,
+      statutoryInfo: {
+        ...formData.statutoryInfo,
+        restrictPfWageLimit: Boolean(formData.statutoryInfo.restrictPfWageLimit),
+        pfWageLimitApplicable: Boolean(formData.statutoryInfo.restrictPfWageLimit),
+        isPfEligible: formData.statutoryInfo.pfApplicable && formData.statutoryInfo.isPfEligible,
+        isEsiEligible: formData.statutoryInfo.esiApplicable && formData.statutoryInfo.esiEligibilityConfirmed
+      }
+    };
     try {
       if (editEmployee) {
-        await api.put(`/employees/${editEmployee._id}`, formData);
+        await api.put(`/employees/${editEmployee._id}`, submission);
         setSuccess(`Employee ${formData.fullName} updated successfully`);
       } else {
-        await api.post('/employees', formData);
+        await api.post('/employees', submission);
         setSuccess(`Employee ${formData.fullName} created successfully`);
       }
       setShowModal(false);
@@ -239,7 +278,8 @@ const Employees = () => {
   const conveyance = Number(formData.salaryStructure.conveyanceAllowance) || 0;
   const medical = Number(formData.salaryStructure.medicalAllowance) || 0;
   const special = Number(formData.salaryStructure.specialAllowance) || 0;
-  const grossMonthly = basic + hra + conveyance + medical + special;
+  const other = Number(formData.salaryStructure.otherAllowances) || 0;
+  const grossMonthly = basic + hra + conveyance + medical + special + other;
 
   return (
     <div className="space-y-6">
@@ -340,16 +380,16 @@ const Employees = () => {
       {/* Data Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
+          <table className="w-full text-left text-sm text-slate-600 divide-y divide-slate-200">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Employee ID</th>
-                <th className="py-3 px-4">Name & Contact</th>
-                <th className="py-3 px-4">Department & Role</th>
-                <th className="py-3 px-4">Monthly CTC</th>
-                <th className="py-3 px-4">PF Status</th>
-                <th className="py-3 px-4">Employment</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th scope="col" className="py-3 px-4 w-[160px] whitespace-nowrap">Employee ID</th>
+                <th scope="col" className="py-3 px-4 min-w-[220px]">Name & Contact</th>
+                <th scope="col" className="py-3 px-4 min-w-[180px]">Department & Role</th>
+                <th scope="col" className="py-3 px-4 min-w-[140px]">Monthly CTC</th>
+                <th scope="col" className="py-3 px-4 w-[130px] whitespace-nowrap">PF Status</th>
+                <th scope="col" className="py-3 px-4 w-[120px] whitespace-nowrap">Employment</th>
+                <th scope="col" className="py-3 px-4 w-[120px] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal">
@@ -369,41 +409,45 @@ const Employees = () => {
               ) : (
                 employees.map((emp) => (
                   <tr key={emp._id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-medium text-slate-900">
+                    <td className="py-3.5 px-4 font-mono font-medium text-slate-900 whitespace-nowrap align-middle">
                       {emp.employeeId}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="font-semibold text-slate-900">{emp.fullName}</div>
-                      <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>{emp.email}</span>
-                        <span>•</span>
-                        <span>{emp.phone}</span>
+                      <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span className="truncate max-w-[200px]" title={emp.email}>{emp.email}</span>
+                        {emp.phone && (
+                          <>
+                            <span className="text-slate-300">•</span>
+                            <span className="whitespace-nowrap">{emp.phone}</span>
+                          </>
+                        )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="text-slate-800 font-medium">{emp.designation}</div>
-                      <div className="text-xs text-slate-400">{emp.department}</div>
+                      <div className="text-xs text-slate-500">{emp.department}</div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                       <div className="font-semibold text-slate-900">
                         {formatINR(emp.salaryStructure?.grossSalaryMonthly || 0)}
                       </div>
                       <div className="text-[11px] text-slate-400">Monthly Gross</div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                       {emp.statutoryInfo?.isPfEligible ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <ShieldCheck className="w-3 h-3 text-emerald-600" />
                           PF Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600">
+                        <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600">
                           Exempt / No PF
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-0.5 text-xs font-medium rounded-full ${
                         emp.employmentStatus === 'Active'
                           ? 'bg-blue-50 text-blue-700 border border-blue-200'
                           : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -411,28 +455,30 @@ const Employees = () => {
                         {emp.employmentStatus}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-1">
-                      <Link
-                        to={`/employees/${emp._id}`}
-                        title="View Full Profile"
-                        className="inline-flex p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Link>
-                      <button
-                        onClick={() => handleOpenEditModal(emp)}
-                        title="Edit Details"
-                        className="inline-flex p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(emp)}
-                        title="Deactivate / Delete"
-                        className="inline-flex p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1">
+                        <Link
+                          to={`/employees/${emp._id}`}
+                          title="View Full Profile"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Link>
+                        <button
+                          onClick={() => handleOpenEditModal(emp)}
+                          title="Edit Details"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(emp)}
+                          title="Deactivate / Delete"
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -543,7 +589,7 @@ const Employees = () => {
                       <input
                         type="email"
                         required
-                        placeholder="employee@innomatrics.com"
+                        placeholder="employee@company.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
@@ -774,28 +820,50 @@ const Employees = () => {
                 {/* TAB 4: STATUTORY INFO */}
                 {activeTab === 'statutory' && (
                   <div className="space-y-4">
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.statutoryInfo.isPfEligible}
-                          onChange={(e) => setFormData({
-                            ...formData,
-                            statutoryInfo: { ...formData.statutoryInfo, isPfEligible: e.target.checked }
-                          })}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-semibold text-slate-800">
-                          Employee Eligible for Provident Fund (EPFO Scheme)
-                        </span>
-                      </label>
-                      <p className="text-xs text-slate-500 mt-1 pl-6">
-                        When enabled, 12% employee contribution will be deducted and matching 12% employer share (EPS 8.33% + EPF 3.67%) will be accrued during monthly payroll.
-                      </p>
-                    </div>
-
-                    {formData.statutoryInfo.isPfEligible && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <p className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                      Payroll uses configured statutory rules as an estimate. Confirm eligibility and applicable rates, wage ceilings, and effective dates with your payroll adviser before processing real payroll. No filing or remittance is implied.
+                    </p>
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800">Provident Fund (EPFO)</div>
+                          <p className="text-xs text-slate-500">Only enabled and eligible employees are calculated.</p>
+                        </div>
+                        <select
+                          value={formData.statutoryInfo.pfApplicable ? 'yes' : 'no'}
+                          onChange={(e) => {
+                            const enabled = e.target.value === 'yes';
+                            setFormData({
+                              ...formData,
+                              statutoryInfo: {
+                                ...formData.statutoryInfo,
+                                pfApplicable: enabled,
+                                isPfEligible: enabled && formData.statutoryInfo.isPfEligible
+                              }
+                            });
+                          }}
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="no">Not Applicable</option>
+                          <option value="yes">Applicable</option>
+                        </select>
+                      </div>
+                      {formData.statutoryInfo.pfApplicable && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">PF eligibility confirmed</label>
+                          <select
+                            value={formData.statutoryInfo.isPfEligible ? 'yes' : 'no'}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              statutoryInfo: { ...formData.statutoryInfo, isPfEligible: e.target.value === 'yes' }
+                            })}
+                            className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                          >
+                            <option value="no">No / Not yet confirmed</option>
+                            <option value="yes">Yes</option>
+                          </select>
+                        </div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-700 mb-1">Universal Account Number (UAN)</label>
                           <input
@@ -823,6 +891,20 @@ const Employees = () => {
                             className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 font-mono"
                           />
                         </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">PF wage basis</label>
+                          <select
+                            value={formData.statutoryInfo.pfWageBasis}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              statutoryInfo: { ...formData.statutoryInfo, pfWageBasis: e.target.value }
+                            })}
+                            className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                          >
+                            <option value="Basic">Basic salary</option>
+                            <option value="Gross">Gross earnings</option>
+                          </select>
+                        </div>
                         <div className="md:col-span-2">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -835,12 +917,88 @@ const Employees = () => {
                               className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                             />
                             <span className="text-xs font-medium text-slate-700">
-                              Restrict PF Calculation to Statutory Wage Ceiling (₹15,000 / month)
+                              Apply the configured PF wage ceiling
                             </span>
                           </label>
                         </div>
                       </div>
                     )}
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800">Employee State Insurance (ESI)</div>
+                          <p className="text-xs text-slate-500">Requires confirmed eligibility and configured current rules.</p>
+                        </div>
+                        <select
+                          value={formData.statutoryInfo.esiApplicable ? 'yes' : 'no'}
+                          onChange={(e) => {
+                            const enabled = e.target.value === 'yes';
+                            setFormData({
+                              ...formData,
+                              statutoryInfo: {
+                                ...formData.statutoryInfo,
+                                esiApplicable: enabled,
+                                isEsiEligible: enabled && formData.statutoryInfo.isEsiEligible
+                              }
+                            });
+                          }}
+                          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="no">Not Applicable</option>
+                          <option value="yes">Applicable</option>
+                        </select>
+                      </div>
+                      {formData.statutoryInfo.esiApplicable && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">ESI eligibility confirmed</label>
+                            <select
+                              value={formData.statutoryInfo.esiEligibilityConfirmed ? 'yes' : 'no'}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                statutoryInfo: {
+                                  ...formData.statutoryInfo,
+                                  esiEligibilityConfirmed: e.target.value === 'yes',
+                                  isEsiEligible: e.target.value === 'yes'
+                                }
+                              })}
+                              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                            >
+                              <option value="no">No / Not yet confirmed</option>
+                              <option value="yes">Yes</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">Insurance / IP number</label>
+                            <input
+                              type="text"
+                              value={formData.statutoryInfo.esiNumber}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                statutoryInfo: { ...formData.statutoryInfo, esiNumber: e.target.value.trim() }
+                              })}
+                              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-700 mb-1">ESI wage basis</label>
+                            <select
+                              value={formData.statutoryInfo.esiWageBasis}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                statutoryInfo: { ...formData.statutoryInfo, esiWageBasis: e.target.value }
+                              })}
+                              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white"
+                            >
+                              <option value="Gross">Gross earnings</option>
+                              <option value="Basic">Basic salary</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

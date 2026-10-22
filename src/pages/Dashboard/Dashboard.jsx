@@ -374,8 +374,8 @@ const Dashboard = () => {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-sm">Recent Advance Payments</h3>
-            <Link to="/advances" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
-              View All <ArrowUpRight className="w-3.5 h-3.5" />
+            <Link to="/invoices" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
+              View Invoices <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>
           <div className="divide-y divide-slate-100">

@@ -35,7 +35,7 @@ const INITIAL_CHALLAN_FORM = {
   clientId: '',
   projectOrWorkOrder: '',
   deliveryAddress: '',
-  deliveryType: 'Material Supply to Site',
+  deliveryType: 'Material Supply',
   transporterName: '',
   vehicleNumber: '',
   driverName: '',
@@ -53,6 +53,7 @@ const DeliveryChallans = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [success, setSuccess] = useState('');
 
   // Issue Challan Modal
@@ -112,6 +113,7 @@ const DeliveryChallans = () => {
   const handleOpenAddModal = () => {
     setFormData(INITIAL_CHALLAN_FORM);
     setError('');
+    setModalError('');
     setShowModal(true);
   };
 
@@ -148,14 +150,39 @@ const DeliveryChallans = () => {
     try {
       setSubmitting(true);
       setError('');
+      setModalError('');
+
+      // Basic client-side validation
+      if (!formData.clientId) {
+        setModalError('Please select a client.');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.deliveryAddress.trim()) {
+        setModalError('Site delivery address is required.');
+        setSubmitting(false);
+        return;
+      }
+      const invalidItem = formData.items.find(
+        (it) => !it.description.trim() || Number(it.quantityDispatched) <= 0
+      );
+      if (invalidItem) {
+        setModalError('All line items must have a valid description and quantity greater than 0.');
+        setSubmitting(false);
+        return;
+      }
+
       await api.post('/delivery-challans', formData);
       setSuccess('Delivery Challan created and issued successfully!');
       setShowModal(false);
+      setFormData(INITIAL_CHALLAN_FORM);
       fetchChallans(1);
       setTimeout(() => setSuccess(''), 4000);
     } catch (err) {
       console.error('Challan submission error:', err);
-      setError(err.response?.data?.message || 'Failed to issue delivery challan');
+      const errMsg = err.response?.data?.message || 'Failed to issue delivery challan';
+      setModalError(errMsg);
+      setError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -280,16 +307,16 @@ const DeliveryChallans = () => {
       {/* Challans Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
+          <table className="w-full text-left text-sm text-slate-600 divide-y divide-slate-200">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Challan Number</th>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Client / Destination</th>
-                <th className="py-3 px-4">Items / Qty</th>
-                <th className="py-3 px-4">Vehicle Details</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th scope="col" className="py-3 px-4 w-[160px] whitespace-nowrap">Challan Number</th>
+                <th scope="col" className="py-3 px-4 w-[120px] whitespace-nowrap">Date</th>
+                <th scope="col" className="py-3 px-4 min-w-[200px]">Client / Destination</th>
+                <th scope="col" className="py-3 px-4 w-[130px] whitespace-nowrap">Items / Qty</th>
+                <th scope="col" className="py-3 px-4 min-w-[150px]">Vehicle Details</th>
+                <th scope="col" className="py-3 px-4 w-[120px] whitespace-nowrap">Status</th>
+                <th scope="col" className="py-3 px-4 w-[210px] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-normal">
@@ -309,17 +336,17 @@ const DeliveryChallans = () => {
               ) : (
                 challans.map((ch) => (
                   <tr key={ch._id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900">
+                    <td className="py-3.5 px-4 font-mono font-bold text-slate-900 whitespace-nowrap align-middle">
                       {ch.challanNumber}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-700">
+                    <td className="py-3.5 px-4 text-slate-700 whitespace-nowrap align-middle">
                       {formatDate(ch.challanDate)}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="font-semibold text-slate-900">{ch.client?.companyName || ch.clientSnapshot?.companyName || 'N/A'}</div>
                       <div className="text-xs text-slate-400 truncate max-w-xs">{ch.deliveryAddress}</div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
                       <div className="font-medium text-slate-900">
                         {ch.items?.length || 0} item line(s)
                       </div>
@@ -327,14 +354,14 @@ const DeliveryChallans = () => {
                         Total {ch.items?.reduce((acc, i) => acc + (i.quantityDispatched || 0), 0)} units
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="font-mono text-xs font-semibold text-slate-800">
                         {ch.vehicleNumber || 'No vehicle'}
                       </div>
                       <div className="text-[11px] text-slate-400">{ch.transporterName || 'Self Transport'}</div>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-0.5 text-xs font-semibold rounded-full ${
                         ch.status === 'Delivered'
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : ch.status === 'Invoiced'
@@ -346,7 +373,7 @@ const DeliveryChallans = () => {
                         {ch.status}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-1.5">
+                    <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap space-x-1.5">
                       <a
                         href={getDownloadUrl(`/api/delivery-challans/${ch._id}/pdf`)}
                         target="_blank"
@@ -374,7 +401,7 @@ const DeliveryChallans = () => {
                             Update
                           </button>
                           <button
-                            onClick={() => navigate(`/invoices?fromChallan=${ch._id}`)}
+                            onClick={() => navigate(`/material-invoices?fromChallan=${ch._id}`)}
                             title="Generate Material Invoice from this Delivery Challan"
                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-md transition-colors"
                           >
@@ -439,6 +466,16 @@ const DeliveryChallans = () => {
 
             <form onSubmit={handleSubmitChallan}>
               <div className="p-6 max-h-[65vh] overflow-y-auto space-y-4">
+                {modalError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600" />
+                      <span>{modalError}</span>
+                    </div>
+                    <button type="button" onClick={() => setModalError('')} className="text-rose-500 hover:text-rose-800 text-base leading-none">&times;</button>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Select Client *</label>
@@ -456,6 +493,23 @@ const DeliveryChallans = () => {
                   </div>
 
                   <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Delivery Type *</label>
+                    <select
+                      required
+                      value={formData.deliveryType}
+                      onChange={(e) => setFormData({ ...formData, deliveryType: e.target.value })}
+                      className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Material Supply">Material Supply</option>
+                      <option value="Project Site Delivery">Project Site Delivery</option>
+                      <option value="Supply on Approval">Supply on Approval</option>
+                      <option value="Job Work">Job Work</option>
+                      <option value="Inter-Branch Transfer">Inter-Branch Transfer</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Project / Work Order</label>
                     <input
                       type="text"
@@ -518,57 +572,63 @@ const DeliveryChallans = () => {
 
                   <div className="space-y-2">
                     {formData.items.map((item, idx) => (
-                      <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <div className="w-1/4">
+                      <div key={idx} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <div className="w-full sm:w-1/4">
                           <input
                             type="text"
                             placeholder="Item Code"
                             value={item.itemCode}
                             onChange={(e) => handleItemChange(idx, 'itemCode', e.target.value)}
-                            className="w-full text-xs border border-slate-300 rounded px-2 py-1.5"
+                            className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 bg-white"
                           />
                         </div>
-                        <div className="w-1/2">
+                        <div className="w-full sm:w-1/2">
                           <input
                             type="text"
                             required
                             placeholder="Item Description *"
                             value={item.description}
                             onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                            className="w-full text-xs border border-slate-300 rounded px-2 py-1.5"
-                          />
-                        </div>
-                        <div className="w-20">
-                          <input
-                            type="number"
-                            min="1"
-                            required
-                            placeholder="Qty"
-                            value={item.quantityDispatched}
-                            onChange={(e) => handleItemChange(idx, 'quantityDispatched', Number(e.target.value))}
-                            className="w-full text-xs border border-slate-300 rounded px-2 py-1.5"
-                          />
-                        </div>
-                        <div className="w-20">
-                          <select
-                            value={item.unit}
-                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
                             className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 bg-white"
-                          >
-                            <option value="Nos">Nos</option>
-                            <option value="Units">Units</option>
-                            <option value="Boxes">Boxes</option>
-                            <option value="Meters">Meters</option>
-                          </select>
+                          />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          disabled={formData.items.length <= 1}
-                          className="text-rose-500 hover:text-rose-700 disabled:opacity-30 p-1 text-sm font-bold"
-                        >
-                          &times;
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <div className="w-20">
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              required
+                              placeholder="Qty"
+                              value={item.quantityDispatched}
+                              onChange={(e) => handleItemChange(idx, 'quantityDispatched', Number(e.target.value))}
+                              className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 bg-white"
+                            />
+                          </div>
+                          <div className="w-24">
+                            <select
+                              value={item.unit}
+                              onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                              className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 bg-white"
+                            >
+                              <option value="Nos">Nos</option>
+                              <option value="Units">Units</option>
+                              <option value="Boxes">Boxes</option>
+                              <option value="Meters">Meters</option>
+                              <option value="Sets">Sets</option>
+                              <option value="Kg">Kg</option>
+                            </select>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            disabled={formData.items.length <= 1}
+                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 p-1 text-sm font-bold ml-auto"
+                            title="Remove row"
+                          >
+                            &times;
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

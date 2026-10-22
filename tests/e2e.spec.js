@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import fs from 'node:fs/promises';
 
 const ADMIN_EMAIL = process.env.TEST_USER_EMAIL || 'admin@innomatrics.com';
 const ADMIN_PASSWORD = process.env.TEST_USER_PASSWORD || 'AdminPassword123!';
@@ -10,11 +11,14 @@ function authHeaders(token) {
 
 async function loginViaUi(page) {
   await page.goto('/login');
+  await expect(page.getByRole('heading', { name: 'Navadurga Electricals' })).toBeVisible();
   await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
   await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: /Sign In to Portal/i }).click();
   await page.waitForURL('**/');
   await expect(page.getByText(/Vikram Sharma/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'NAVADURGA ELECTRICALS' })).toBeVisible();
+  await expect(page.getByText('Navadurga CRM')).toBeVisible();
 }
 
 async function getAdminToken(request) {
@@ -306,6 +310,111 @@ async function createPayrollRunFromPreviewViaApi(request, token, month, year) {
 }
 
 test.describe('Innomatrics E2E smoke suite', () => {
+  test('shows responsive payroll employee summaries and expandable breakdowns', async ({ page }) => {
+    const token = await getAdminToken(page.request);
+    await createEmployeeViaApi(page.request, token, {
+      employeeId: `LAYOUT-${Date.now()}`,
+      fullName: 'Payroll Layout Test Employee With A Longer Name'
+    });
+    const payroll = await createPayrollRunFromPreviewViaApi(page.request, token);
+
+    await loginViaUi(page);
+    await page.goto('/payroll');
+    const payrollRow = page.locator('tr').filter({
+      hasText: payroll.payrollCode || payroll.payrollRunNumber
+    });
+    const viewRegisterButton = payrollRow.getByRole('button', { name: /View Register/i });
+    await expect(viewRegisterButton).toBeVisible();
+    await viewRegisterButton.click();
+
+    const modal = page.getByTestId('payroll-register-modal');
+    const content = page.getByTestId('payroll-register-content');
+    const employeeCard = modal.getByTestId('payroll-employee-card').first();
+    const breakdown = employeeCard.getByTestId('payroll-employee-breakdown');
+    await expect(modal.getByRole('heading', { name: 'Payroll Register' })).toBeVisible();
+    await expect(employeeCard).toBeVisible();
+    await expect(employeeCard.getByText('Gross salary')).toBeVisible();
+    await expect(employeeCard.getByText('Total deductions')).toBeVisible();
+    await expect(employeeCard.getByText('Net payable')).toBeVisible();
+    await expect(modal.getByText(/Lifecycle:/i)).toBeVisible();
+    await expect(modal.getByText(/Disbursement:/i)).toBeVisible();
+    await expect(modal.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+    await expect(modal.getByRole('link', { name: /PDF Payslip/i }).first()).toBeVisible();
+    expect(await breakdown.evaluate((element) => element.open)).toBe(false);
+
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      const modalBounds = await modal.boundingBox();
+      expect(modalBounds.x).toBeGreaterThanOrEqual(0);
+      expect(modalBounds.x + modalBounds.width).toBeLessThanOrEqual(viewport.width);
+      expect(modalBounds.y).toBeGreaterThanOrEqual(0);
+      expect(modalBounds.y + modalBounds.height).toBeLessThanOrEqual(viewport.height);
+
+      const overflow = await modal.evaluate((element) => ({
+        width: element.clientWidth,
+        scrollWidth: element.scrollWidth
+      }));
+      expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width);
+      await expect(content).toHaveCSS('overflow-y', 'auto');
+
+      const payslipButton = await modal.getByRole('link', { name: /PDF Payslip/i }).first().boundingBox();
+      expect(payslipButton.x).toBeGreaterThanOrEqual(0);
+      expect(payslipButton.x + payslipButton.width).toBeLessThanOrEqual(viewport.width);
+      expect(payslipButton.x + payslipButton.width).toBeLessThanOrEqual(modalBounds.x + modalBounds.width);
+    }
+
+    await breakdown.locator('summary').click();
+    expect(await breakdown.evaluate((element) => element.open)).toBe(true);
+    await expect(breakdown.getByText('Employee PF')).toBeVisible();
+    await expect(breakdown.getByText('Employer contributions total')).toBeVisible();
+    await expect(breakdown.getByText(/PF \/ ESI remittance/i)).toBeVisible();
+    const expandedBody = await content.evaluate((element) => ({
+      width: element.clientWidth,
+      scrollWidth: element.scrollWidth
+    }));
+    expect(expandedBody.scrollWidth).toBeLessThanOrEqual(expandedBody.width);
+    await breakdown.locator('summary').click();
+    expect(await breakdown.evaluate((element) => element.open)).toBe(false);
+
+    const payButton = modal.getByRole('button', { name: /^Pay$/i }).first();
+    if (await payButton.isVisible()) {
+      await payButton.click();
+      await expect(page.getByRole('heading', { name: /Record Salary Disbursement/i })).toBeVisible();
+      await page.getByRole('button', { name: 'Cancel' }).click();
+    }
+  });
+
+  test('downloads a valid PDF for every report card', async ({ page }) => {
+    await loginViaUi(page);
+    await page.goto('/reports');
+    await expect(page.getByText(/Business Reports & Data Exports/i)).toBeVisible();
+
+    const reportIds = [
+      'clients',
+      'invoices',
+      'material-invoices',
+      'delivery-challans',
+      'employees',
+      'payroll',
+      'employee-pf',
+      'pf-documents',
+      'advances',
+      'quantities',
+      'services'
+    ];
+
+    for (const reportId of reportIds) {
+      const downloadPromise = page.waitForEvent('download');
+      await page.getByTestId(`download-pdf-${reportId}`).click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toMatch(/\.pdf$/i);
+      const filePath = await download.path();
+      const contents = await fs.readFile(filePath);
+      expect(contents.subarray(0, 5).toString()).toBe('%PDF-');
+      expect(contents.includes(Buffer.from('%%EOF'))).toBeTruthy();
+    }
+  });
+
   test('invalid login, protected route redirect, and valid logout flow', async ({ page }) => {
     await page.goto('/login');
 
@@ -318,9 +427,14 @@ test.describe('Innomatrics E2E smoke suite', () => {
     await page.goto('/clients');
     await expect(page).toHaveURL(/\/login$/);
 
-    await page.locator('input[type="email"]').fill(ADMIN_EMAIL);
-    await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
+    const emailInput = page.locator('input[type="email"]');
+    const passwordInput = page.locator('input[type="password"]');
+    await emailInput.clear();
+    await emailInput.fill(ADMIN_EMAIL);
+    await passwordInput.clear();
+    await passwordInput.fill(ADMIN_PASSWORD);
     await page.getByRole('button', { name: /Sign In to Portal/i }).click();
+    await page.waitForURL('**/');
     await expect(page).toHaveURL(/\/$/);
 
     await page.getByTitle('Sign Out').click();
@@ -417,9 +531,103 @@ test.describe('Innomatrics E2E smoke suite', () => {
 
     await page.goto('/payroll');
     await expect(page.getByText(/Historical Payroll Batches|Salary & Monthly Payroll/i).first()).toBeVisible();
-    await expect(page.getByText(new RegExp(`${payroll.month}\\s*${payroll.year}`))).toBeVisible();
+    const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthName = monthNames[payroll.month] || '';
+    await expect(page.getByText(new RegExp(`(${monthName}|${payroll.month})\\s*${payroll.year}`, 'i'))).toBeVisible();
 
     await page.goto('/reports');
     await expect(page.getByText(/Reports & Data Export|Material Invoices Register|Client Register/i).first()).toBeVisible();
+  });
+
+  test('verifies service catalog, quantities register, and PF document generation workflows with reload persistence', async ({ page, request }) => {
+    await loginViaUi(page);
+
+    const token = await getAdminToken(request);
+    const client = await createClientViaApi(request, token, {
+      companyName: `Workflow Client ${Date.now()}`,
+      email: `wf-${Date.now()}@example.com`,
+    });
+
+    // 1. Services Page Verification
+    await page.goto('/services');
+    await expect(page.getByText(/Service Catalog/i).first()).toBeVisible();
+    await page.getByTestId('add-service-btn').click();
+
+    const serviceName = `Cloud Automation ${Date.now()}`;
+    await page.locator('input[placeholder="e.g. AWS Cloud Security Assessment"]').fill(serviceName);
+    await page.locator('input[placeholder="50000"]').fill('45000');
+    await page.locator('input[placeholder="998313"]').fill('998315');
+    await page.getByRole('button', { name: /Add to Catalog|Save Service/i }).click();
+
+    await expect(page.getByText(serviceName)).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(serviceName)).toBeVisible();
+
+    // 2. Quantities Page Verification
+    await page.goto('/quantities');
+    await expect(page.getByText(/Quantity Management Register/i).first()).toBeVisible();
+    await page.getByRole('button', { name: /Log Quantity Record/i }).click();
+
+    // Select the client and service explicitly
+    await page.locator('select').first().selectOption({ value: client._id });
+    await page.locator('select').nth(1).selectOption({ index: 0 });
+
+    const qtyNotes = `Delivered Sprint Unit ${Date.now()}`;
+    await page.locator('input[placeholder="Milestone sprint details or notes..."]').fill(qtyNotes);
+    await page.getByRole('button', { name: /Save Log/i }).click();
+
+    await expect(page.getByText(qtyNotes)).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(qtyNotes)).toBeVisible();
+
+    // 3. PF Documents Workflow Verification
+    await page.goto('/pf-documents');
+    await expect(page.getByText(/PF Documents/i).first()).toBeVisible();
+    await page.getByTestId('create-pf-btn').click();
+
+    const pfModal = page.locator('form').filter({ hasText: /Service Line Items/i });
+    await pfModal.locator('select').first().selectOption({ value: client._id });
+    await pfModal.locator('select').nth(1).selectOption({ index: 1 });
+    await pfModal.locator('input[placeholder="Scope description"]').fill('Full Stack Web Dev Task');
+
+    const pfNotes = `Proforma Quote Note ${Date.now()}`;
+    await pfModal.locator('textarea[placeholder="Special instructions, milestones, or proposal remarks..."]').fill(pfNotes);
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === '/invoices' && url.searchParams.has('fromPF')),
+      pfModal.getByRole('button', { name: /Issue PF Document/i }).click(),
+    ]);
+
+    // After issuing PF, the UI navigates to Invoice creation. Navigate back to /pf-documents to verify persistence
+    await page.goto('/pf-documents');
+    await expect(page.getByText(client.companyName).first()).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(client.companyName).first()).toBeVisible();
+  });
+
+  test('verifies Employee PF statutory register, Settings company profile, and cross-module consistency', async ({ page, request }) => {
+    await loginViaUi(page);
+
+    // 1. Employee PF Register Verification
+    await page.goto('/employee-pf');
+    await expect(page.getByText(/Employee PF & Statutory Records/i).first()).toBeVisible();
+    await expect(page.getByPlaceholder(/Search by Employee, UAN or Member ID/i)).toBeVisible();
+
+    // 2. Settings Page Verification
+    await page.goto('/settings');
+    await expect(page.getByText(/Company & Billing Settings/i).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /Save Settings/i })).toBeVisible();
+
+    // Update and persist legal name or tagline
+    const legalNameInput = page.locator('input[name="companyName"]');
+    await expect(legalNameInput).toBeVisible();
+    const currentName = await legalNameInput.inputValue();
+    expect(currentName.length).toBeGreaterThan(0);
+
+    // 3. Dashboard Cross-Module KPI Consistency Verification
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: /Executive/i })).toBeVisible();
+    await expect(page.getByText(/Total Invoiced/i).first()).toBeVisible();
+    await expect(page.getByText(/Payments Collected/i).first()).toBeVisible();
+    await expect(page.getByText(/Outstanding Receivables/i).first()).toBeVisible();
   });
 });

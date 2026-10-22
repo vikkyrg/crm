@@ -245,6 +245,7 @@ const PFDocuments = () => {
           </a>
           <button
             onClick={openCreatePFModal}
+            data-testid="create-pf-btn"
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 shadow-sm shadow-blue-500/20 transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -289,16 +290,16 @@ const PFDocuments = () => {
       {/* Document List Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+          <table className="w-full text-left border-collapse text-sm divide-y divide-slate-200">
             <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">PF Number</th>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Client</th>
-                <th className="py-3 px-4">Items</th>
-                <th className="py-3 px-4">Grand Total</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Downloads & Actions</th>
+                <th scope="col" className="py-3 px-4 w-[150px] whitespace-nowrap">PF Number</th>
+                <th scope="col" className="py-3 px-4 w-[130px] whitespace-nowrap">Date</th>
+                <th scope="col" className="py-3 px-4 min-w-[200px]">Client</th>
+                <th scope="col" className="py-3 px-4 w-[110px] whitespace-nowrap">Items</th>
+                <th scope="col" className="py-3 px-4 w-[140px] whitespace-nowrap">Grand Total</th>
+                <th scope="col" className="py-3 px-4 w-[160px] whitespace-nowrap">Status</th>
+                <th scope="col" className="py-3 px-4 w-[230px] text-right whitespace-nowrap">Downloads & Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -318,24 +319,34 @@ const PFDocuments = () => {
               ) : (
                 documents.map((doc) => (
                   <tr key={doc._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600">{doc.pfNumber}</td>
-                    <td className="py-3 px-4 text-slate-600">{formatDate(doc.documentDate)}</td>
-                    <td className="py-3 px-4 font-medium text-slate-900">{doc.clientSnapshot?.companyName}</td>
-                    <td className="py-3 px-4 text-slate-600">{doc.items?.length || 0} line(s)</td>
-                    <td className="py-3 px-4 font-bold text-slate-900">{formatINR(doc.grandTotal)}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600 whitespace-nowrap align-middle">
+                      {doc.pfNumber}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap align-middle">
+                      {formatDate(doc.documentDate)}
+                    </td>
+                    <td className="py-3.5 px-4 font-medium text-slate-900 align-middle">
+                      {doc.clientSnapshot?.companyName || '—'}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap align-middle">
+                      {doc.items?.length || 0} line(s)
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap align-middle">
+                      {formatINR(doc.grandTotal)}
+                    </td>
+                    <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                         doc.status === 'Converted to Invoice'
-                          ? 'bg-purple-50 text-purple-700'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
                           : doc.status === 'Accepted'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-blue-50 text-blue-700'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
                       }`}>
                         {doc.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1">
                         {/* Edit Action */}
                         <button
                           onClick={() => openEditPFModal(doc)}
@@ -628,6 +639,30 @@ const PFDocuments = () => {
                     <span>Grand Total:</span>
                     <span>{formatINR(previewGrandTotal)}</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Notes & Terms */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Notes / Remarks</label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Special instructions, milestones, or proposal remarks..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Terms & Conditions</label>
+                  <textarea
+                    rows={2}
+                    value={terms}
+                    onChange={(e) => setTerms(e.target.value)}
+                    placeholder="Commercial and delivery terms..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-600"
+                  />
                 </div>
               </div>
 
