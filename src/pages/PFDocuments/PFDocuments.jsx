@@ -8,7 +8,6 @@ import {
   Search,
   Download,
   FileText,
-  FileCode,
   ArrowRight,
   Eye,
   Trash2,
@@ -28,6 +27,8 @@ const PFDocuments = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [clients, setClients] = useState([]);
   const [services, setServices] = useState([]);
+  const [roundingPolicy, setRoundingPolicy] = useState('round_to_nearest');
+  const [companyStateCode, setCompanyStateCode] = useState('09');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editPF, setEditPF] = useState(null);
   const [selectedDoc, setSelectedDoc] = useState(null);
@@ -39,6 +40,7 @@ const PFDocuments = () => {
     { serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
   ]);
   const [documentDiscount, setDocumentDiscount] = useState(0);
+  const [advanceAmount, setAdvanceAmount] = useState(0);
   const [notes, setNotes] = useState('');
   const [terms, setTerms] = useState('');
   const [error, setError] = useState('');
@@ -52,6 +54,7 @@ const PFDocuments = () => {
       { serviceId: '', description: '', unitPrice: 0, quantity: 1, discountPercent: 0, taxRate: 18, unit: 'Units' }
     ]);
     setDocumentDiscount(0);
+    setAdvanceAmount(0);
     setNotes('');
     setTerms('');
     setShowCreateModal(true);
@@ -62,6 +65,7 @@ const PFDocuments = () => {
     setSelectedClientId(doc.client?._id || doc.client);
     setDocumentDate(doc.documentDate ? new Date(doc.documentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
     setDocumentDiscount(doc.documentDiscount || 0);
+    setAdvanceAmount(doc.advanceAmount || 0);
     setNotes(doc.notes || '');
     setTerms(doc.termsAndConditions || '');
     if (doc.items && doc.items.length > 0) {
@@ -86,12 +90,14 @@ const PFDocuments = () => {
   const [totalCount, setTotalCount] = useState(0);
   const limit = 10;
 
-  const fetchDocuments = async (targetPage = page) => {
+  const fetchDocuments = async (targetPage = page, filters = {}) => {
     try {
       setLoading(true);
       const params = { page: targetPage, limit };
-      if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
+      const searchValue = filters.search !== undefined ? filters.search : search;
+      const statusValue = filters.statusFilter !== undefined ? filters.statusFilter : statusFilter;
+      if (searchValue) params.search = searchValue;
+      if (statusValue) params.status = statusValue;
 
       const res = await api.get('/pf-documents', { params });
       setDocuments(res.data.data);
@@ -106,12 +112,15 @@ const PFDocuments = () => {
 
   const fetchDependencies = async () => {
     try {
-      const [cRes, sRes] = await Promise.all([
+      const [cRes, sRes, settingsRes] = await Promise.all([
         api.get('/clients?limit=100'),
-        api.get('/services?limit=100')
+        api.get('/services?limit=100'),
+        api.get('/settings')
       ]);
       setClients(cRes.data.data);
       setServices(sRes.data.data);
+      setRoundingPolicy(settingsRes.data.data?.roundingPolicy || 'round_to_nearest');
+      setCompanyStateCode(settingsRes.data.data?.stateCode || '09');
     } catch (err) {
       console.error(err);
     }
@@ -156,16 +165,39 @@ const PFDocuments = () => {
   };
 
   const selectedClientObj = clients.find((c) => c._id === selectedClientId);
-  const isInterState = Boolean(selectedClientObj?.stateCode && selectedClientObj?.stateCode !== '09');
+  const isInterState = Boolean(selectedClientObj?.stateCode && selectedClientObj?.stateCode !== companyStateCode);
 
   // Realtime totals
   const calculatedLines = items.map((it) => calculateClientLine(it, isInterState));
   const previewSubtotal = calculatedLines.reduce((acc, curr) => acc + (curr.unitPrice * curr.quantity), 0);
-  const previewTaxable = calculatedLines.reduce((acc, curr) => acc + curr.taxableAmount, 0) - Number(documentDiscount || 0);
+  const previewItemDiscounts = calculatedLines.reduce((acc, curr) => acc + curr.discountAmount, 0);
+  const rawPreviewTaxable = calculatedLines.reduce((acc, curr) => acc + curr.taxableAmount, 0);
+  const previewDocumentDiscount = Math.min(rawPreviewTaxable, Math.max(0, Number(documentDiscount) || 0));
+  const previewTaxable = Math.max(0, rawPreviewTaxable - previewDocumentDiscount);
   const previewTax = calculatedLines.reduce((acc, curr) => acc + curr.totalTax, 0);
-  const previewGrandTotal = Math.round(previewTaxable + previewTax);
+  const rawPreviewGrandTotal = Math.round((previewTaxable + previewTax + Number.EPSILON) * 100) / 100;
+  const previewGrandTotal = roundingPolicy === 'none' ? rawPreviewGrandTotal : Math.round(rawPreviewGrandTotal);
+  const previewCgst = calculatedLines.reduce((acc, curr) => acc + curr.cgstAmount, 0);
+  const previewSgst = calculatedLines.reduce((acc, curr) => acc + curr.sgstAmount, 0);
+  const previewIgst = calculatedLines.reduce((acc, curr) => acc + curr.igstAmount, 0);
+  const parsedAdvanceAmount = Number(advanceAmount);
+  const advanceInputError = advanceAmount === ''
+    ? ''
+    : !Number.isFinite(parsedAdvanceAmount) || parsedAdvanceAmount < 0
+      ? 'Advance amount must be a valid non-negative amount'
+      : Math.abs(parsedAdvanceAmount * 100 - Math.round(parsedAdvanceAmount * 100)) > 1e-7
+        ? 'Enter a currency amount with up to two decimal places'
+        : parsedAdvanceAmount > previewGrandTotal
+          ? `Advance amount cannot exceed PF Grand Total (${formatINR(previewGrandTotal)})`
+          : '';
+  const numericAdvanceAmount = Math.max(0, Number(advanceAmount) || 0);
+  const previewBalancePayable = Math.max(0, previewGrandTotal - numericAdvanceAmount);
 
   const [isSaving, setIsSaving] = useState(false);
+
+  const handleAdvanceAmountChange = (value) => {
+    setAdvanceAmount(value);
+  };
 
   const handleSavePF = async (e) => {
     e.preventDefault();
@@ -174,11 +206,40 @@ const PFDocuments = () => {
     setIsSaving(true);
 
     try {
+      if (!selectedClientId) {
+        setError('Select a client before issuing the PF document');
+        return;
+      }
+      if (!items.length || items.some((item) => (
+        !item.description?.trim()
+        || !Number.isFinite(Number(item.unitPrice))
+        || Number(item.unitPrice) < 0
+        || !Number.isFinite(Number(item.quantity))
+        || Number(item.quantity) <= 0
+      ))) {
+        setError('Add at least one valid line item with a description, non-negative price, and positive quantity');
+        return;
+      }
+      const finalAdvanceAmount = Number(advanceAmount);
+      if (
+        !Number.isFinite(finalAdvanceAmount)
+        || finalAdvanceAmount < 0
+        || Math.abs(finalAdvanceAmount * 100 - Math.round(finalAdvanceAmount * 100)) > 1e-7
+      ) {
+        setError('Advance amount must be a valid non-negative currency amount with up to two decimal places');
+        return;
+      }
+      if (finalAdvanceAmount > previewGrandTotal) {
+        setError(`Advance amount cannot exceed PF Grand Total (${formatINR(previewGrandTotal)})`);
+        return;
+      }
+
       if (editPF) {
         await api.put(`/pf-documents/${editPF._id}`, {
           documentDate,
           items,
           documentDiscount: Number(documentDiscount) || 0,
+          advanceAmount: finalAdvanceAmount,
           notes,
           termsAndConditions: terms
         });
@@ -187,18 +248,22 @@ const PFDocuments = () => {
         fetchDocuments();
         setTimeout(() => setSuccess(''), 4000);
       } else {
-        const res = await api.post('/pf-documents', {
+        await api.post('/pf-documents', {
           clientId: selectedClientId,
           documentDate,
           items,
           documentDiscount: Number(documentDiscount) || 0,
+          advanceAmount: finalAdvanceAmount,
           notes,
           termsAndConditions: terms
         });
-        const createdPF = res.data.data;
         setShowCreateModal(false);
-        // Automatically navigate to Invoice creation with the newly issued PF document ID as query parameter
-        navigate(`/invoices?fromPF=${createdPF._id}`);
+        setSuccess('PF Document issued successfully');
+        setSearch('');
+        setStatusFilter('');
+        setPage(1);
+        fetchDocuments(1, { search: '', statusFilter: '' });
+        setTimeout(() => setSuccess(''), 4000);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Error saving PF document');
@@ -257,6 +322,38 @@ const PFDocuments = () => {
       {success && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm font-medium">
           {success}
+        </div>
+      )}
+
+      {selectedDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">{selectedDoc.pfNumber}</h2>
+                <p className="text-sm text-slate-500">{selectedDoc.clientSnapshot?.companyName || 'Client'} · {formatDate(selectedDoc.documentDate)}</p>
+              </div>
+              <button onClick={() => setSelectedDoc(null)} className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Close</button>
+            </div>
+            <div className="mb-4 space-y-2">
+              {(selectedDoc.items || []).map((item, index) => (
+                <div key={`${selectedDoc._id}-${index}`} className="flex justify-between gap-4 border-b border-slate-100 py-2 text-sm">
+                  <span>{item.description} · {item.quantity} × {formatINR(item.unitPrice)}</span>
+                  <span className="font-semibold">{formatINR(item.lineTotal)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="ml-auto max-w-sm space-y-2 rounded-lg bg-slate-50 p-4 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{formatINR(selectedDoc.subtotal)}</span></div>
+              <div className="flex justify-between"><span>Document Discount</span><span>- {formatINR(selectedDoc.documentDiscount || 0)}</span></div>
+              <div className="flex justify-between"><span>Taxable Value</span><span>{formatINR(selectedDoc.totalTaxableAmount)}</span></div>
+              <div className="flex justify-between"><span>GST Total</span><span>{formatINR(selectedDoc.totalTax)}</span></div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold"><span>Grand Total</span><span>{formatINR(selectedDoc.grandTotal)}</span></div>
+              <div className="flex justify-between text-blue-700"><span>Advance Received (as entered)</span><span>{formatINR(selectedDoc.advanceAmount || 0)}</span></div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-emerald-700"><span>Balance Payable</span><span>{formatINR(selectedDoc.balancePayable ?? Math.max(0, selectedDoc.grandTotal - (selectedDoc.advanceAmount || 0)))}</span></div>
+            </div>
+            <p className="mt-3 text-right text-xs text-slate-500">Advance is an entered amount; receipt via cash or bank has not been verified here.</p>
+          </div>
         </div>
       )}
 
@@ -347,6 +444,13 @@ const PFDocuments = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right align-middle whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setSelectedDoc(doc)}
+                          title="View PF Document"
+                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         {/* Edit Action */}
                         <button
                           onClick={() => openEditPFModal(doc)}
@@ -359,19 +463,11 @@ const PFDocuments = () => {
                         <a
                           href={getDownloadUrl(`/api/pf-documents/${doc._id}/pdf${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
                           download
-                          title="Download PDF"
-                          className="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded"
+                          title="Download PDF Document"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                         >
-                          <FileText className="w-4 h-4" />
-                        </a>
-                        {/* Download Word Docx */}
-                        <a
-                          href={getDownloadUrl(`/api/pf-documents/${doc._id}/docx${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
-                          download
-                          title="Download Word .docx"
-                          className="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded"
-                        >
-                          <FileCode className="w-4 h-4" />
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                          <span>PDF</span>
                         </a>
                         {!doc.convertedToInvoiceId ? (
                           <>
@@ -501,6 +597,7 @@ const PFDocuments = () => {
                     required
                     value={documentDate}
                     onChange={(e) => setDocumentDate(e.target.value)}
+                    disabled={editPF?.status === 'Converted to Invoice'}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"
                   />
                 </div>
@@ -513,6 +610,7 @@ const PFDocuments = () => {
                   <button
                     type="button"
                     onClick={handleAddItemRow}
+                    disabled={editPF?.status === 'Converted to Invoice'}
                     className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Service Line
@@ -528,6 +626,7 @@ const PFDocuments = () => {
                         <select
                           value={item.serviceId}
                           onChange={(e) => handleItemChange(idx, 'serviceId', e.target.value)}
+                          disabled={editPF?.status === 'Converted to Invoice'}
                           className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
                         >
                           <option value="">-- Choose Catalog Service --</option>
@@ -547,13 +646,14 @@ const PFDocuments = () => {
                           required
                           value={item.description}
                           onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                          disabled={editPF?.status === 'Converted to Invoice'}
                           className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
                           placeholder="Scope description"
                         />
                       </div>
 
                       {/* Unit Price */}
-                      <div className="col-span-4 sm:col-span-2">
+                      <div className="col-span-4 sm:col-span-3">
                         <label className="text-[10px] text-slate-500 font-semibold uppercase">Price (₹)</label>
                         <input
                           type="number"
@@ -562,12 +662,13 @@ const PFDocuments = () => {
                           required
                           value={item.unitPrice}
                           onChange={(e) => handleItemChange(idx, 'unitPrice', e.target.value)}
+                          disabled={editPF?.status === 'Converted to Invoice'}
                           className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
                         />
                       </div>
 
                       {/* Quantity */}
-                      <div className="col-span-3 sm:col-span-1">
+                      <div className="col-span-4 sm:col-span-1">
                         <label className="text-[10px] text-slate-500 font-semibold uppercase">Qty</label>
                         <input
                           type="number"
@@ -576,28 +677,17 @@ const PFDocuments = () => {
                           required
                           value={item.quantity}
                           onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                          className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
-                        />
-                      </div>
-
-                      {/* Disc % */}
-                      <div className="col-span-3 sm:col-span-1">
-                        <label className="text-[10px] text-slate-500 font-semibold uppercase">Disc %</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.discountPercent}
-                          onChange={(e) => handleItemChange(idx, 'discountPercent', e.target.value)}
+                          disabled={editPF?.status === 'Converted to Invoice'}
                           className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
                         />
                       </div>
 
                       {/* Delete Action */}
-                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-3">
+                      <div className="col-span-4 sm:col-span-1 flex justify-end pt-3">
                         <button
                           type="button"
                           onClick={() => handleRemoveItemRow(idx)}
+                          disabled={editPF?.status === 'Converted to Invoice'}
                           className="p-1.5 text-slate-400 hover:text-red-600 rounded"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -609,35 +699,88 @@ const PFDocuments = () => {
               </div>
 
               {/* Realtime Summary Preview */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row justify-between gap-4">
-                <div className="space-y-2 flex-1">
-                  <label className="block text-xs font-semibold text-slate-700 uppercase">Document Discount (₹)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={documentDiscount}
-                    onChange={(e) => setDocumentDiscount(e.target.value)}
-                    className="w-48 px-3 py-1.5 border border-slate-300 rounded text-sm bg-white"
-                  />
-                  <p className="text-[11px] text-slate-500">Discount applied before final GST assessment</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-700 uppercase">Document Discount (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={documentDiscount}
+                      onChange={(e) => setDocumentDiscount(e.target.value)}
+                      disabled={editPF?.status === 'Converted to Invoice'}
+                      className="w-48 px-3 py-1.5 border border-slate-300 rounded text-sm bg-white"
+                    />
+                    <p className="text-[11px] text-slate-500">Discount applied before final GST assessment</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Advance Amount (₹)</label>
+                    <div className="relative max-w-sm">
+                      <span className="absolute left-3 top-2 text-slate-400 font-semibold text-sm">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max={previewGrandTotal}
+                        step="0.01"
+                        value={advanceAmount}
+                        onChange={(e) => handleAdvanceAmountChange(e.target.value)}
+                        disabled={editPF?.status === 'Converted to Invoice'}
+                        className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-600 bg-white disabled:bg-slate-100"
+                      />
+                    </div>
+                    {advanceInputError ? (
+                      <p className="mt-1 text-[11px] font-medium text-red-600">{advanceInputError}</p>
+                    ) : (
+                      <p className="mt-1 text-[11px] text-slate-500">Amount entered for this PF; this does not verify a cash or bank receipt.</p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="w-72 space-y-1.5 text-xs text-slate-600">
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-600">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span className="font-semibold text-slate-900">{formatINR(previewSubtotal)}</span>
+                  </div>
+                  {previewItemDiscounts > 0 && (
+                    <div className="flex justify-between">
+                      <span>Item Discount:</span>
+                      <span className="font-semibold text-slate-900">- {formatINR(previewItemDiscounts)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>Document Discount:</span>
+                    <span className="font-semibold text-slate-900">- {formatINR(previewDocumentDiscount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Taxable Value:</span>
                     <span className="font-semibold text-slate-900">{formatINR(previewTaxable)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>GST (18%):</span>
+                    <span>{isInterState ? 'IGST:' : 'CGST:'}</span>
+                    <span className="font-semibold text-slate-900">{formatINR(isInterState ? previewIgst : previewCgst)}</span>
+                  </div>
+                  {!isInterState && (
+                    <div className="flex justify-between">
+                      <span>SGST:</span>
+                      <span className="font-semibold text-slate-900">{formatINR(previewSgst)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span>GST Total:</span>
                     <span className="font-semibold text-slate-900">{formatINR(previewTax)}</span>
                   </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-blue-700">
+                  <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-blue-700">
                     <span>Grand Total:</span>
                     <span>{formatINR(previewGrandTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-blue-700">
+                    <span>Advance Received (as entered):</span>
+                    <span className="font-semibold">{formatINR(numericAdvanceAmount)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-emerald-700">
+                    <span>Balance Payable:</span>
+                    <span>{formatINR(previewBalancePayable)}</span>
                   </div>
                 </div>
               </div>

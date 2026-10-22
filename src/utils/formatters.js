@@ -63,3 +63,55 @@ export const calculateClientLine = (line, isInterState = false) => {
     lineTotal
   };
 };
+
+/**
+ * Rounds number to 2 decimal places reliably
+ */
+export const round2 = (num) => {
+  return Math.round((Number(num) + Number.EPSILON) * 100) / 100;
+};
+
+/**
+ * Mask sensitive bank account digits (e.g. •••• •••• 1234)
+ */
+export const maskAccountNumber = (acc) => {
+  if (!acc) return 'N/A';
+  const str = String(acc).trim();
+  if (str.length <= 4) return str;
+  return `•••• •••• ${str.slice(-4)}`;
+};
+
+/**
+ * Convert number to Indian Rupee Words
+ */
+export const numberToWordsINR = (num) => {
+  if (num === null || num === undefined || isNaN(num)) return 'Zero Rupees Only';
+  const a = [
+    '', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ',
+    'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const n = ('000000000' + Math.floor(Math.abs(num))).substr(-9);
+  const match = n.match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!match) return '';
+
+  let str = '';
+  str += Number(match[1]) !== 0 ? (a[Number(match[1])] || b[match[1][0]] + ' ' + a[match[1][1]]) + 'Crore ' : '';
+  str += Number(match[2]) !== 0 ? (a[Number(match[2])] || b[match[2][0]] + ' ' + a[match[2][1]]) + 'Lakh ' : '';
+  str += Number(match[3]) !== 0 ? (a[Number(match[3])] || b[match[3][0]] + ' ' + a[match[3][1]]) + 'Thousand ' : '';
+  str += Number(match[4]) !== 0 ? (a[Number(match[4])] || b[match[4][0]] + ' ' + a[match[4][1]]) + 'Hundred ' : '';
+  str += Number(match[5]) !== 0 ? ((str !== '') ? 'and ' : '') + (a[Number(match[5])] || b[match[5][0]] + ' ' + a[match[5][1]]) : '';
+
+  if (!str.trim()) {
+    str = 'Zero ';
+  }
+
+  const paise = Math.round((Math.abs(num) - Math.floor(Math.abs(num))) * 100);
+  let paiseStr = '';
+  if (paise > 0) {
+    paiseStr = ' and ' + (a[paise] || b[Math.floor(paise / 10)] + ' ' + a[paise % 10]) + 'Paise';
+  }
+
+  return (num < 0 ? 'Minus ' : '') + str.trim() + ' Rupees' + paiseStr + ' Only';
+};

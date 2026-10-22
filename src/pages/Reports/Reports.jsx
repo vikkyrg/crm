@@ -222,9 +222,9 @@ const Reports = () => {
                   data-testid={`download-pdf-${report.id}`}
                   onClick={() => downloadReport(report)}
                   disabled={Boolean(downloadingReport)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-wait"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm shadow-red-500/20 disabled:opacity-60 disabled:cursor-wait"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <FileText className="w-3.5 h-3.5 text-white" />
                   {downloadingReport === report.id ? 'Generating PDF...' : 'Download PDF'}
                 </button>
               </div>

@@ -16,7 +16,6 @@ import {
   Server,
   Briefcase,
   FileText,
-  ShieldCheck,
   Truck,
   Package
 } from 'lucide-react';
@@ -197,8 +196,8 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ERP Operational KPI Grid (Employees, Payroll, Delivery Challans, Material Invoices) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ERP Operational KPI Grid (Employees, Payroll, Delivery Challans) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Employees */}
         <Link to="/employees" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-blue-400 transition-colors shadow-sm">
           <div className="flex items-center gap-3">
@@ -247,22 +246,6 @@ const Dashboard = () => {
             </div>
           </div>
           <span className="text-[11px] font-semibold text-amber-600">Logistics &rarr;</span>
-        </Link>
-
-        {/* EPFO Statutory PF */}
-        <Link to="/employee-pf" className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-violet-400 transition-colors shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-violet-50 text-violet-600 rounded-xl">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-500 font-medium">EPFO Remittances</div>
-              <div className="text-xl font-bold text-slate-900">
-                {pfRemittanceStats?.pendingCount ?? kpis?.pfPendingCount ?? 0} <span className="text-xs font-normal text-slate-400">pending</span>
-              </div>
-            </div>
-          </div>
-          <span className="text-[11px] font-semibold text-violet-600">Remit &rarr;</span>
         </Link>
       </div>
 

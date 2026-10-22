@@ -310,9 +310,6 @@ const EmployeeProfile = () => {
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               EPF Contribution Records
             </h3>
-            <Link to="/employee-pf" className="text-xs font-semibold text-emerald-600 hover:underline">
-              View All PF Records &rarr;
-            </Link>
           </div>
           <div className="p-4">
             {pfHistory.length === 0 ? (

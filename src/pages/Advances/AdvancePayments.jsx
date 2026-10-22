@@ -352,14 +352,15 @@ const AdvancePayments = () => {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {/* Download Receipt */}
+                        {/* Download Receipt PDF */}
                         <a
                           href={`/api/advances/${adv._id}/pdf${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`}
                           download
                           title="Download Receipt PDF"
-                          className="p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 rounded"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                         >
-                          <FileText className="w-4 h-4" />
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                          <span>PDF</span>
                         </a>
 
                         {/* Edit Action */}

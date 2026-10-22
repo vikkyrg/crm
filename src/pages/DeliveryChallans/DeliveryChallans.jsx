@@ -378,10 +378,11 @@ const DeliveryChallans = () => {
                         href={getDownloadUrl(`/api/delivery-challans/${ch._id}/pdf`)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                        title="Download Delivery Challan PDF"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        PDF
+                        <FileText className="w-3.5 h-3.5 text-red-600" />
+                        <span>PDF</span>
                       </a>
                       {ch.status !== 'Invoiced' && ch.status !== 'Cancelled' && (
                         <>

@@ -28,7 +28,6 @@ const Settings = lazy(() => import('./pages/Settings/Settings'));
 const Employees = lazy(() => import('./pages/Employees/Employees'));
 const EmployeeProfile = lazy(() => import('./pages/Employees/EmployeeProfile'));
 const Payroll = lazy(() => import('./pages/Payroll/Payroll'));
-const EmployeePF = lazy(() => import('./pages/EmployeePF/EmployeePF'));
 const DeliveryChallans = lazy(() => import('./pages/DeliveryChallans/DeliveryChallans'));
 
 function App() {
@@ -81,9 +80,8 @@ function App() {
               <Route path="/payroll" element={<Payroll />} />
             </Route>
 
-            <Route element={<AppLayout title="Employee PF & Statutory Records" breadcrumb="Employee PF" />}>
-              <Route path="/employee-pf" element={<EmployeePF />} />
-            </Route>
+            {/* Redirect /employee-pf to /payroll */}
+            <Route path="/employee-pf" element={<Navigate to="/payroll" replace />} />
 
             <Route element={<AppLayout title="Delivery Challan Register" breadcrumb="Delivery Challans" />}>
               <Route path="/delivery-challans" element={<DeliveryChallans />} />

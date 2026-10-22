@@ -8,7 +8,6 @@ import {
   Search,
   Download,
   FileText,
-  FileCode,
   DollarSign,
   AlertCircle,
   Trash2,
@@ -649,18 +648,11 @@ const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
                         <a
                           href={getDownloadUrl(`/api/invoices/${inv._id}/pdf${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
                           download
-                          title="Download PDF"
-                          className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Download PDF Invoice"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                         >
-                          <FileText className="w-4 h-4" />
-                        </a>
-                        <a
-                          href={getDownloadUrl(`/api/invoices/${inv._id}/docx${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
-                          download
-                          title="Download Word .docx"
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        >
-                          <FileCode className="w-4 h-4" />
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                          <span>PDF</span>
                         </a>
                         {inv.outstandingBalance > 0 && (
                           <button
@@ -862,9 +854,10 @@ const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
                 href={getDownloadUrl(`/api/invoices/${viewInvoice._id}/pdf${localStorage.getItem('innomatrics_token') ? `?token=${localStorage.getItem('innomatrics_token')}` : ''}`)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 shadow-sm shadow-red-500/20 transition-all"
               >
-                Download / Print PDF
+                <FileText className="w-4 h-4" />
+                Download PDF
               </a>
               <button onClick={() => setViewInvoice(null)} className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold">Close</button>
             </div>
@@ -1090,7 +1083,7 @@ const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
                         />
                       </div>
 
-                      <div className="col-span-3 sm:col-span-1">
+                      <div className="col-span-4 sm:col-span-1">
                         <label className="text-[10px] text-slate-500 font-semibold uppercase">Qty</label>
                         <input
                           type="number"
@@ -1103,7 +1096,7 @@ const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
                         />
                       </div>
 
-                      <div className="col-span-3 sm:col-span-1">
+                      <div className="col-span-4 sm:col-span-2">
                         <label className="text-[10px] text-slate-500 font-semibold uppercase">GST %</label>
                         <input
                           type="number"
@@ -1117,19 +1110,7 @@ const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
                         />
                       </div>
 
-                      <div className="col-span-3 sm:col-span-1">
-                        <label className="text-[10px] text-slate-500 font-semibold uppercase">Disc %</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.discountPercent}
-                          onChange={(e) => handleItemChange(idx, 'discountPercent', e.target.value)}
-                          className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
-                        />
-                      </div>
-
-                      <div className="col-span-2 sm:col-span-1 flex justify-end pt-3">
+                      <div className="col-span-12 sm:col-span-1 flex justify-end pt-3">
                         <button
                           type="button"
                           onClick={() => handleRemoveItemRow(idx)}

@@ -12,7 +12,6 @@ import {
   ChevronRight,
   Briefcase,
   FileText,
-  ShieldCheck,
   Truck,
   X
 } from 'lucide-react';
@@ -30,8 +29,7 @@ const coreNavItems = [
 
 const erpNavItems = [
   { name: 'Employees', path: '/employees', icon: Briefcase },
-  { name: 'Salary & Payroll', path: '/payroll', icon: FileText },
-  { name: 'Employee PF (EPFO)', path: '/employee-pf', icon: ShieldCheck },
+  { name: 'Salary / Payslip', path: '/payroll', icon: FileText },
   { name: 'Delivery Challans', path: '/delivery-challans', icon: Truck }
 ];
 

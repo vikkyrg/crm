@@ -16,7 +16,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Trash2,
-  UserCheck
+  UserCheck,
+  FileText
 } from 'lucide-react';
 
 const ClientProfile = () => {
@@ -276,9 +277,11 @@ const ClientProfile = () => {
                         <a
                           href={`/api/invoices/${inv._id}/pdf`}
                           download
-                          className="text-xs font-semibold text-blue-600 hover:underline"
+                          title="Download Invoice PDF"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                         >
-                          Download PDF
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                          <span>PDF</span>
                         </a>
                       </td>
                     </tr>
@@ -323,9 +326,11 @@ const ClientProfile = () => {
                         <a
                           href={`/api/pf-documents/${pf._id}/pdf`}
                           download
-                          className="text-xs font-semibold text-blue-600 hover:underline"
+                          title="Download PF PDF"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                         >
-                          Download PDF
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                          <span>PDF</span>
                         </a>
                       </td>
                     </tr>
@@ -371,9 +376,11 @@ const ClientProfile = () => {
                         <a
                           href={`/api/advances/${adv._id}/pdf`}
                           download
-                          className="text-xs font-semibold text-purple-600 hover:underline"
+                          title="Download Receipt PDF"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg shadow-sm transition-all"
                         >
-                          Download Receipt
+                          <FileText className="w-3.5 h-3.5 text-red-600" />
+                          <span>PDF</span>
                         </a>
                       </td>
                     </tr>
