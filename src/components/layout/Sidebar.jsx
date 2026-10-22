@@ -16,7 +16,7 @@ import {
   Truck,
   X
 } from 'lucide-react';
-import logo from '../../logo.png';
+import logo from '../../Logo.png';
 
 const coreNavItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
