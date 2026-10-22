@@ -17,6 +17,7 @@ import {
   Edit2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   WalletCards,
   Truck
 } from 'lucide-react';
@@ -1060,13 +1061,22 @@ const Invoices = ({ invoiceType: invoiceTypeFilter = '' }) => {
                       {isMaterialInvoice && (
                         <div className="col-span-4 sm:col-span-1">
                           <label className="text-[10px] text-slate-500 font-semibold uppercase">Unit *</label>
-                          <input
-                            type="text"
-                            required
-                            value={item.unit || ''}
-                            onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded text-xs outline-none"
-                          />
+                          <div className="relative">
+                            <select
+                              required
+                              value={item.unit || ''}
+                              onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                              className="w-full appearance-none text-xs border border-slate-300 rounded px-2 py-1.5 pr-6 bg-white"
+                            >
+                              <option value="Nos">Nos</option>
+                              <option value="Units">Units</option>
+                              <option value="Boxes">Boxes</option>
+                              <option value="Meters">Meters</option>
+                              <option value="Sets">Sets</option>
+                              <option value="Kg">Kg</option>
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-600" />
+                          </div>
                         </div>
                       )}
 
